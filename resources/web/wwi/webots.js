@@ -147,7 +147,6 @@ webots.View = class View {
         document.getElementById('webotsProgress').style.display = 'block';
 
       if (this._isWebSocketProtocol) {
-        console.log("_isWebSocketProtocol is true");
         if (typeof this.toolBar === 'undefined')
           this.toolBar = new Toolbar(this.view3D, this);
         else if (!document.getElementById('toolBar'))
@@ -200,7 +199,7 @@ webots.View = class View {
 
     if (this.broadcast)
       this.setTimeout(-1);
-    this._isWebSocketProtocol = this.url.startsWith('ws://') || this.url.startsWith('wss://');
+    this._isWebSocketProtocol = this.url.startsWith('ws://') || this.url.startsWith('wss://') || this.url.endsWith('.wbt');
 
     const texturePathPrefix = url.includes('/') ? url.substring(0, url.lastIndexOf('/') + 1) : '';
 

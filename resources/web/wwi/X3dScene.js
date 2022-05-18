@@ -101,7 +101,6 @@ export default class X3dScene {
   }
 
   loadWorldFile(url, onLoad) {
-    console.log("Loading World");
     const prefix = this.prefix;
     const renderer = this.renderer;
     const xmlhttp = new XMLHttpRequest();
@@ -125,7 +124,6 @@ export default class X3dScene {
   }
 
   _loadObject(x3dObject, parentId, callback) {
-    console.log("Loading Object");
     let parentNode;
     if (typeof parentId !== 'undefined' && parentId > 0) {
       parentNode = WbWorld.instance.nodes.get('n' + parentId);
