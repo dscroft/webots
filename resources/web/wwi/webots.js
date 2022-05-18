@@ -147,6 +147,7 @@ webots.View = class View {
         document.getElementById('webotsProgress').style.display = 'block';
 
       if (this._isWebSocketProtocol) {
+        console.log("_isWebSocketProtocol is true");
         if (typeof this.toolBar === 'undefined')
           this.toolBar = new Toolbar(this.view3D, this);
         else if (!document.getElementById('toolBar'))
