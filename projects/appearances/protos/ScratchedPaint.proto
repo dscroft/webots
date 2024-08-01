@@ -1,6 +1,8 @@
-#VRML_SIM R2022b utf8
+#VRML_SIM R2024a utf8
 # license: Apache License 2.0
-# license url: http://www.apache.org/licenses/LICENSE-2.0
+# license url: https://www.apache.org/licenses/LICENSE-2.0
+# documentation url: https://webots.cloud/run?url=https://github.com/cyberbotics/webots/blob/released/projects/appearances/protos/ScratchedPaint.proto
+# keywords: appearance/paint
 # A scratched paint material.
 # template language: javascript
 
@@ -15,19 +17,19 @@ PROTO ScratchedPaint [
     baseColor IS colorOverride
     baseColorMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/scratched_paint/scratched_paint_base_color.jpg"
+        "textures/scratched_paint/scratched_paint_base_color.jpg"
       ]
     }
     roughnessMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/scratched_paint/scratched_paint_roughness.jpg"
+        "textures/scratched_paint/scratched_paint_roughness.jpg"
       ]
     }
     metalness 0
     %< if (fields.metalScratch.value) { >%
     metalnessMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/scratched_paint/scratched_paint_metalness.jpg"
+        "textures/scratched_paint/scratched_paint_metalness.jpg"
       ]
     }
     %< } >%

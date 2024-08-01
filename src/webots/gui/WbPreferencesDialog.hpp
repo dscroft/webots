@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,11 +21,13 @@
 
 #include <QtWidgets/QButtonGroup>
 #include <QtWidgets/QDialog>
+#include <QtWidgets/QListWidget>
 
 class WbLineEdit;
 
 class QCheckBox;
 class QComboBox;
+class QListWidget;
 class QSpinBox;
 class QDialogButtonBox;
 class QTabWidget;
@@ -50,6 +52,8 @@ private slots:
   void accept() override;
   void openFontDialog();
   void clearCache();
+  void addNewIp();
+  void removeSelectedIp();
 
 private:
   QString retrieveThemeName(const QString &filename) const;
@@ -66,9 +70,10 @@ private:
     *mTextureFilteringCombo;
   WbLineEdit *mEditorFontEdit, *mPythonCommand, *mMatlabCommand, *mExtraProjectPath, *mHttpProxyHostName, *mHttpProxyPort,
     *mHttpProxyUsername, *mHttpProxyPassword, *mUploadUrl, *mBrowserProgram;
-  QCheckBox *mDisableSaveWarningCheckBox, *mCheckWebotsUpdateCheckBox, *mTelemetryCheckBox, *mDisableShadowsCheckBox,
-    *mDisableAntiAliasingCheckBox, *mHttpProxySocks5CheckBox, *mRenderingCheckBox, *mNewBrowserWindow;
+  QCheckBox *mDisableSaveWarningCheckBox, *mThumnailCheckBox, *mCheckWebotsUpdateCheckBox, *mTelemetryCheckBox,
+    *mDisableShadowsCheckBox, *mDisableAntiAliasingCheckBox, *mHttpProxySocks5CheckBox, *mRenderingCheckBox, *mNewBrowserWindow;
   QSpinBox *mCacheSize;
+  QListWidget *mAllowedIps;
   QLabel *mCacheSizeLabel;
 
   QStringList mValidThemeFilenames;

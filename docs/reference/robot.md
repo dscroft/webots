@@ -232,6 +232,7 @@ Depending on the complexity of the simulation and execution mode, the function m
 When it returns, the requested duration of simulation time is elapsed.
 In other words the physics runs for the specified duration: objects may move, the motors may run, the sensor values may change, etc.
 Note that the `duration` parameter must be a multiple of the `WorldInfo.basicTimeStep`.
+In Python, if no `duration` parameter is given, the `WorldInfo.basicTimeStep` is used.
 
 If this function returns -1, this indicates that Webots is about to terminate the controller.
 This happens when the user hits the `Reload` button or quits Webots.
@@ -250,7 +251,7 @@ It means that the step actually lasted the requested number of milliseconds, but
 It means that the requested step duration could not be respected.
 
 When using `wb_robot_step`, the controller code is executed sequentially with the Webots simulation step, i.e., not in parallel.
-This is due to the fact that a typical controller reads sensor information, makes some computation, orders motor commands and calls `wb_robot_step` which actually sends the motor commands and sensors requests and waits until Webots completes a simulation step, which may take some time depending on the complexity of the simulation.
+This is due to the fact that a typical controller reads sensor information, makes some computation, orders motor commands and calls `wb_robot_step` which actually sends the motor commands and sensor requests and waits until Webots completes a simulation step, which may take some time depending on the complexity of the simulation.
 During this time, the controller is idle, waiting for Webots to complete its simulation step.
 On the other hand, prior to starting a new step, Webots waits for all the controllers to send their `wb_robot_step` messages which may induce some idle waiting time in Webots if a controller doesn't send quickly enough its `wb_robot_step` message because it is busy with some computation.
 If the two computational processes (Webots and controller) are slow, it may be interesting to parallelize them.
@@ -262,8 +263,10 @@ This includes some [Supervisor API](supervisor.md) functions, like `wb_superviso
 Webots will warn you in case you call one of these functions between `wb_robot_step_begin` and `wb_robot_step_end`.
 You can simply call them before `wb_robot_step_begin` or after `wb_robot_step_end`.
 However, some of these functions can be called between `wb_robot_step_begin` and `wb_robot_step_end` if you enable the supervisor tracking feature.
-`wb_supervisor_field_enable_sf_tracking`, `wb_supervisor_node_enable_pose_tracking` and `wb_supervisor_node_enable_contact_point_tracking` force Webots to continuously stream the requested information to the controller.
+`wb_supervisor_field_enable_sf_tracking`, `wb_supervisor_node_enable_pose_tracking` and `wb_supervisor_node_enable_contact_points_tracking` force Webots to continuously stream the requested information to the controller.
 By enabling the tracking, the corresponding supervisor functions can be called between `wb_robot_step_begin` and `wb_robot_step_end`, because their value will be queried to Webots during `wb_robot_step_begin` and received during `wb_robot_step_end`.
+Also, note that the data returned by the following functions are subject to change between a call to `wb_robot_step_begin` and the subsequent call to `wb_robot_step_end`: `wb_camera_get_image`, `wb_camera_recognition_get_segmentation_image`, `wb_lidar_get_range_image`, `wb_lidar_get_layer_range_image`, `wb_lidar_get_point_cloud`, `wb_lidar_get_layer_point_cloud`, and `wb_range_finder_get_range_image`.
+As a result, if you want to access that data during a step, you should copy it before the step begins and access the copy.
 
 The C API has two additional functions: `wb_robot_init` and `wb_robot_cleanup`.
 There is no equivalent of the `wb_robot_init` and `wb_robot_cleanup` functions in the Java, Python, C++ and MATLAB APIs.
@@ -763,10 +766,12 @@ WbDeviceTag wb_robot_get_device(const char *name);
 namespace webots {
   class Robot {
     Accelerometer *getAccelerometer(const std::string &name);
+    Altimeter *getAltimeter(const std::string &name);
     Brake *getBrake(const std::string &name);
     Camera *getCamera(const std::string &name);
     Compass *getCompass(const std::string &name);
     Connector *getConnector(const std::string &name);
+    Device *getDevice(const std::string &name);
     Display *getDisplay(const std::string &name);
     DistanceSensor *getDistanceSensor(const std::string &name);
     Emitter *getEmitter(const std::string &name);
@@ -817,10 +822,12 @@ import com.cyberbotics.webots.controller.Robot;
 
 public class Robot {
   public Accelerometer getAccelerometer(String name);
+  public Altimeter getAltimeter(String name);
   public Brake getBrake(String name);
   public Camera getCamera(String name);
   public Compass getCompass(String name);
   public Connector getConnector(String name);
+  public Device getDevice(String name);
   public Display getDisplay(String name);
   public DistanceSensor getDistanceSensor(String name);
   public Emitter getEmitter(String name);
@@ -869,7 +876,7 @@ Devices are available through their services.
 
 *get a unique identifier to a device*
 
-The `wb_robot_get_device` function (available in C, Python and MATLAB) returns a unique identifier for a device corresponding to a specified `name`.
+The `wb_robot_get_device` function returns a unique identifier for a device corresponding to a specified `name`.
 For example, if a robot contains a [DistanceSensor](distancesensor.md) node whose `name` field is "ds1", the function will return the unique identifier of that device.
 This `WbDeviceTag` identifier will be used subsequently for enabling, sending commands to, or reading data from this device.
 If the specified device is not found, the function returns 0 in C and MATLAB or `None` in Python.
@@ -879,6 +886,8 @@ These functions return a reference to an object corresponding to a specified `na
 Depending on the called function, this object can be an instance of a `Device` subclass.
 For example, if a robot contains a [DistanceSensor](distancesensor.md) node whose `name` field is "ds1", the function `getDistanceSensor` will return a reference to a [DistanceSensor](distancesensor.md) object.
 If the specified device is not found, the function returns `NULL` in C++ or `null` in Java.
+
+Note that if any two devices share the same name, `wb_robot_get_device` will return the first one it finds. In order to distinguish between devices with the same name, users should consider iterating over a robot's devices using `wb_robot_get_device_by_index` and `wb_robot_get_number_of_devices`.
 
 ---
 
@@ -1133,7 +1142,7 @@ In that case, the sampling period is expressed in real time and not in simulatio
 
 #### `wb_robot_battery_sensor_enable`
 #### `wb_robot_battery_sensor_disable`
-#### `wb_robot_get_battery_sampling_period`
+#### `wb_robot_battery_sensor_get_sampling_period`
 #### `wb_robot_battery_sensor_get_value`
 
 %tab-component "language"
@@ -1146,7 +1155,7 @@ In that case, the sampling period is expressed in real time and not in simulatio
 void wb_robot_battery_sensor_enable(int sampling_period);
 void wb_robot_battery_sensor_disable();
 double wb_robot_battery_sensor_get_value();
-int wb_robot_get_battery_sampling_period(WbDeviceTag tag);
+int wb_robot_battery_sensor_get_sampling_period();
 ```
 
 %tab-end
@@ -2358,7 +2367,8 @@ The message is sent using the `webots.window("<robot window name>").send` method
 The `wb_robot_window_send` and `wb_robot_wwi_send_text` functions allow a robot controller to send a message to a JavaScript function running in the HTML robot window.
 The message is received using the `webots.window("<robot window name>").receive` method of the Webots JavaScript API.
 
-The `wb_robot_wwi_send_text` function returns the first message present in the buffer of received messages and moves its reading head to the next one. To read the full buffer, you should call repeatedly this function until it returns `NULL`:
+The `wb_robot_wwi_receive_text` function returns the first message present in the buffer of received messages and moves its reading head to the next one.
+To read the full buffer, you should call repeatedly this function until it returns `NULL`:
 ```C
 const char *message;
 while ((message = wb_robot_wwi_receive_text())) {

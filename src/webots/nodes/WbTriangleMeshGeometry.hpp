@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,7 +34,7 @@ class WbTriangleMeshGeometry : public WbGeometry {
 
 public:
   // constructors and destructor
-  virtual ~WbTriangleMeshGeometry();
+  virtual ~WbTriangleMeshGeometry() override;
 
   // reimplemented public functions
   void preFinalize() override;
@@ -87,15 +87,7 @@ protected:
   WbTriangleMeshGeometry(const WbTriangleMeshGeometry &other);
   WbTriangleMeshGeometry(const WbNode &other);
 
-  void destroyWrenMesh();
-
   virtual int indexSize() const { return 0; }
-  void exportNodeContents(WbWriter &writer) const override;
-  bool exportNodeHeader(WbWriter &writer) const override;
-  const QString &vrmlName() const override {
-    static const QString name("IndexedFaceSet");
-    return name;
-  }
 
   // WREN
   void buildWrenMesh(bool updateCache);
@@ -108,6 +100,12 @@ protected:
   WbTriangleMesh *mTriangleMesh;
   QString mTriangleMeshError;
   dTriMeshDataID mTrimeshData;
+
+  // Hashmap containing triangle meshes, shared by all instances
+  static WbTriangleMeshMap cTriangleMeshMap;
+
+  // Hashmap key for this instance's mesh
+  WbTriangleMeshCache::TriangleMeshGeometryKey mMeshKey;
 
 private:
   WbTriangleMeshGeometry &operator=(const WbTriangleMeshGeometry &);  // non copyable
@@ -137,12 +135,6 @@ private:
   double computeLocalCollisionPoint(WbVector3 &point, int &triangleIndex, const WbRay &ray) const;
   void updateScaledCoordinates() const;
   mutable bool mScaledCoordinatesNeedUpdate;
-
-  // Hashmap key for this instance's mesh
-  WbTriangleMeshCache::TriangleMeshGeometryKey mMeshKey;
-
-  // Hashmap containing triangle meshes, shared by all instances
-  static WbTriangleMeshMap cTriangleMeshMap;
 
 private slots:
   void updateOptionalRendering(int option);

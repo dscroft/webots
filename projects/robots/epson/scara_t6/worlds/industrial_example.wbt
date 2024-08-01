@@ -1,4 +1,39 @@
-#VRML_SIM R2022b utf8
+#VRML_SIM R2024a utf8
+
+EXTERNPROTO "webots://projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "webots://projects/objects/floors/protos/Floor.proto"
+EXTERNPROTO "webots://projects/appearances/protos/ThreadMetalPlate.proto"
+EXTERNPROTO "webots://projects/objects/factory/manhole/protos/SquareManhole.proto"
+EXTERNPROTO "webots://projects/objects/tables/protos/Table.proto"
+EXTERNPROTO "webots://projects/appearances/protos/BrushedAluminium.proto"
+EXTERNPROTO "webots://projects/objects/chairs/protos/WoodenChair.proto"
+EXTERNPROTO "webots://projects/objects/computers/protos/Monitor.proto"
+EXTERNPROTO "webots://projects/objects/computers/protos/Keyboard.proto"
+EXTERNPROTO "webots://projects/objects/computers/protos/DesktopComputer.proto"
+EXTERNPROTO "webots://projects/objects/computers/protos/ComputerMouse.proto"
+EXTERNPROTO "webots://projects/objects/telephone/protos/OfficeTelephone.proto"
+EXTERNPROTO "webots://projects/objects/factory/tools/protos/Wrench.proto"
+EXTERNPROTO "webots://projects/objects/factory/tools/protos/Hammer.proto"
+EXTERNPROTO "webots://projects/objects/factory/tools/protos/PlatformCart.proto"
+EXTERNPROTO "webots://projects/objects/apartment_structure/protos/Radiator.proto"
+EXTERNPROTO "webots://projects/objects/factory/pallet/protos/WoodenPalletStack.proto"
+EXTERNPROTO "webots://projects/objects/cabinet/protos/Cabinet.proto"
+EXTERNPROTO "webots://projects/appearances/protos/GlossyPaint.proto"
+EXTERNPROTO "webots://projects/objects/factory/containers/protos/CardboardBox.proto"
+EXTERNPROTO "webots://projects/objects/solids/protos/SolidBox.proto"
+EXTERNPROTO "webots://projects/appearances/protos/GalvanizedMetal.proto"
+EXTERNPROTO "webots://projects/robots/epson/scara_t6/protos/ScaraT6.proto"
+EXTERNPROTO "webots://projects/objects/factory/tools/protos/Bolt.proto"
+EXTERNPROTO "webots://projects/appearances/protos/ElectricConduit.proto"
+EXTERNPROTO "webots://projects/objects/factory/fire_extinguisher/protos/FireExtinguisher.proto"
+EXTERNPROTO "webots://projects/objects/factory/conveyors/protos/ConveyorBelt.proto"
+EXTERNPROTO "webots://projects/appearances/protos/CorrugatedMetal.proto"
+EXTERNPROTO "webots://projects/objects/factory/containers/protos/PlasticCrate.proto"
+EXTERNPROTO "webots://projects/appearances/protos/Roughcast.proto"
+EXTERNPROTO "webots://projects/appearances/protos/Plastic.proto"
+EXTERNPROTO "webots://projects/objects/fruits/protos/Orange.proto"
+EXTERNPROTO "webots://projects/objects/fruits/protos/Apple.proto"
+
 WorldInfo {
   info [
     "A SCARA Epson T6 sorting fruits with a suction cup in a food industry setting."
@@ -9,8 +44,8 @@ WorldInfo {
 }
 Viewpoint {
   fieldOfView 0.9
-  orientation 0.18793470204092078 -0.04691206835612319 -0.9810605514499809 3.6743968176728012
-  position 4.001999429639437 -2.35724694298558 1.8428479644180809
+  orientation -0.17074220749368596 0.0451964666895051 0.9842786079047778 2.59
+  position 3.09 -2.27 1.91
   exposure 1.7
 }
 TexturedBackground {
@@ -43,7 +78,7 @@ WoodenChair {
   translation 2.921084 1.648051 0
   rotation 0 0 1 2.0944
 }
-Transform {
+Pose {
   translation 2.52024 2.10889 0.796
   rotation 0 0 1 -1.3089953071795861
   children [
@@ -160,7 +195,7 @@ Solid {
     }
   ]
 }
-Transform {
+Pose {
   translation 1.77 2.67 1.05
   rotation 1 0 0 1.5707996938995747
   children [
@@ -198,7 +233,7 @@ ScaraT6 {
   supervisor TRUE
   staticBase TRUE
   handSlot [
-    DEF VACCUM Transform {
+    DEF VACCUM Pose {
       children [
         Shape {
           appearance ElectricConduit {
@@ -211,6 +246,33 @@ ScaraT6 {
       ]
     }
   ]
+}
+Bolt {
+  translation 0.47 -0.41 0.471
+  rotation 0 1 0 1.5708
+  screwRadius 0.0042
+  enablePhysics FALSE
+}
+Bolt {
+  translation 0.33 -0.41 0.471
+  rotation 9.58979e-09 -1 9.58976e-09 -1.5707953071795862
+  name "bolt(3)"
+  screwRadius 0.0042
+  enablePhysics FALSE
+}
+Bolt {
+  translation 0.47 -0.266 0.471
+  rotation 0 1 0 1.5708
+  name "bolt(1)"
+  screwRadius 0.0042
+  enablePhysics FALSE
+}
+Bolt {
+  translation 0.33 -0.266 0.471
+  rotation 0 1 0 1.5708
+  name "bolt(2)"
+  screwRadius 0.0042
+  enablePhysics FALSE
 }
 FireExtinguisher {
   translation -0.75771 1.79 0
@@ -256,7 +318,7 @@ PlasticCrate {
   color 0.827451 0.843137 0.811765
   mass 1
 }
-DEF WALL1 Transform {
+DEF WALL1 Pose {
   translation 0.75 2.5 1
   rotation 1 0 0 1.5708
   children [
@@ -269,14 +331,14 @@ DEF WALL1 Transform {
     }
   ]
 }
-DEF WALL2 Transform {
+DEF WALL2 Pose {
   translation 0.75 -2.5 1
   rotation 1 0 0 -1.5708
   children [
     USE wall_long
   ]
 }
-DEF WALL3 Transform {
+DEF WALL3 Pose {
   translation 4.5 0 1
   rotation -0.5773509358554485 0.5773489358556708 0.5773509358554485 -2.094395307179586
   children [
@@ -289,14 +351,14 @@ DEF WALL3 Transform {
     }
   ]
 }
-DEF WALL4 Transform {
+DEF WALL4 Pose {
   translation -3 0 1
   rotation 0.5773506025225371 0.5773496025232256 0.5773506025225371 2.0944
   children [
     USE wall_short
   ]
 }
-Transform {
+Pose {
   translation 4.5 -0.83 0.65
   children [
     Shape {

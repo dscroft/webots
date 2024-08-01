@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -108,9 +108,7 @@ namespace {
     foreach (const QString &dirName, dirList) {
       QDir childDir(QString("%1/%2").arg(dir.absolutePath()).arg(dirName));
       if (directoryContainsWbtFile(childDir, wildcard)) {
-        if (dirName == "projects")  // skip the 'projects' directory in 'resources'
-          continue;
-        else if (dirName == "worlds")  // skip this directory layer
+        if (dirName == "worlds")  // skip this directory layer
           populateTreeModel(itemCounter, parent, childDir, wildcard);
         else {
           QStandardItem *item = new QStandardItem(dirName);
@@ -217,8 +215,6 @@ void WbOpenSampleWorldDialog::updateTree(const QString &reg) {
 
   int itemCounter = 0;
   populateTreeModel(itemCounter, parentItem, QDir(WbStandardPaths::projectsPath()), mFindLineEdit->text());
-  populateTreeModel(itemCounter, parentItem, QDir(WbStandardPaths::resourcesPath()),
-                    mFindLineEdit->text());  // add the worlds placed in the 'resources' directory
 
   if (itemCounter < 10)
     mTreeView->expandAll();

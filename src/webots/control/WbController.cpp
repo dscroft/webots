@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,7 @@
 #include "WbApplicationInfo.hpp"
 #include "WbBinaryIncubator.hpp"
 #include "WbControlledWorld.hpp"
+#include "WbDataStream.hpp"
 #include "WbFileUtil.hpp"
 #include "WbIniParser.hpp"
 #include "WbLanguage.hpp"
@@ -25,7 +26,7 @@
 #include "WbPerformanceLog.hpp"
 #include "WbPreferences.hpp"
 #include "WbProject.hpp"
-#include "WbProtoList.hpp"
+#include "WbProtoManager.hpp"
 #include "WbProtoModel.hpp"
 #include "WbRobot.hpp"
 #include "WbSimulationState.hpp"
@@ -40,8 +41,13 @@
 #include <QtCore/QDir>
 #include <QtCore/QProcess>
 #include <QtCore/QProcessEnvironment>
+#include <QtCore/QUrl>
+#include <QtNetwork/QLocalServer>
 #include <QtNetwork/QLocalSocket>
+#include <QtNetwork/QTcpSocket>
+
 #include <cassert>
+#include <iostream>
 #include "../../controller/c/messages.h"
 
 #ifdef _WIN32
@@ -87,16 +93,16 @@ static void printArray(const QByteArray &buffer, const QString &prefix, int id, 
 }
 */
 
-WbController::WbController(WbRobot *robot) : mHasPendingImmediateAnswer(false) {
+WbController::WbController(WbRobot *robot) {
   mRobot = robot;
-  mRobot->setConfigureRequest(true);
   mControllerPath = mRobot->controllerDir();
   updateName(mRobot->controllerName());
-  connect(mRobot, &WbRobot::appendMessageToConsole, this, &WbController::appendMessageToConsole);
-  connect(mRobot, &WbRobot::destroyed, this, &WbController::robotDestroyed);
 
   mType = WbFileUtil::UNKNOWN;
+  mExtern = mRobot->controllerName() == "<extern>";
+  mServer = NULL;
   mSocket = NULL;
+  mTcpSocket = NULL;
   mProcess = NULL;
   mRequestTime = 0.0;
   mDeltaTimeRequested = 0;
@@ -105,10 +111,15 @@ WbController::WbController(WbRobot *robot) : mHasPendingImmediateAnswer(false) {
   mIncompleteRequest = false;
   mRequestPending = false;
   mProcessingRequest = false;
+  mHasPendingImmediateAnswer = false;
   mStdoutNeedsFlush = false;
   mStderrNeedsFlush = false;
 
   connect(mRobot, &WbRobot::controllerExited, this, &WbController::handleControllerExit);
+  connect(mRobot, &WbRobot::immediateMessageAdded, this, &WbController::writeImmediateAnswer);
+  connect(mRobot, &WbRobot::userInputEventNeedUpdate, this, &WbController::writeUserInputEventAnswer);
+  connect(mRobot, &WbRobot::appendMessageToConsole, this, &WbController::appendMessageToConsole);
+  connect(mRobot, &WbRobot::destroyed, this, &WbController::robotDestroyed);
 }
 
 WbController::~WbController() {
@@ -121,51 +132,105 @@ WbController::~WbController() {
   if (mProcess)
     mProcess->disconnect(this);
 
+  QByteArray buffer;
+  QDataStream stream(&buffer, QIODevice::WriteOnly);
+  stream.setByteOrder(QDataStream::LittleEndian);
   if (mSocket) {
-    mSocket->disconnect();
-    // eat the latest messages from the controller
-    if (!mRequestPending && mSocket->isValid()) {
-      mSocket->waitForReadyRead(1000);
-      mSocket->readAll();
-    }
+    const int size = 2 * sizeof(int) + sizeof(WbDeviceTag) + sizeof(unsigned char);
+    stream << size;               // size, to be overwritten afterwards
+    stream << (int)0;             // time stamp, ignored
+    stream << (unsigned short)0;  // tag of the root device
+    stream << (unsigned char)C_ROBOT_QUIT;
+    assert(size == buffer.size());
+    sendTerminationPacket(mSocket, buffer, size);
 
-    // send the termination packet
-    if (mHasBeenTerminatedByItself)
-      mHasBeenTerminatedByItself = false;
-    else {
-      const int size = 2 * sizeof(int) + sizeof(WbDeviceTag) + sizeof(unsigned char);
-      QByteArray buffer;
-      QDataStream stream(&buffer, QIODevice::WriteOnly);
-      stream.setByteOrder(QDataStream::LittleEndian);
-      stream << size;               // size, to be overwritten afterwards
-      stream << (int)0;             // time stamp, ignored
-      stream << (unsigned short)0;  // tag of the root device
-      stream << (unsigned char)C_ROBOT_QUIT;
-      assert(size == buffer.size());
-      if (mSocket->isValid()) {
-        mSocket->write(buffer.constData(), size);
-        mSocket->flush();  // otherwise the temination packet is not sent
-      }
-      // kill the process
-      if (mProcess && mProcess->state() != QProcess::NotRunning && !mProcess->waitForFinished(1000)) {
-        WbLog::warning(tr("%1: Forced termination (because process didn't terminate itself after 1 second).").arg(name()));
-#ifdef _WIN32
-        // on Windows, we need to kill the process as it may not handle the WM_CLOSE message sent by terminate()
-        mProcess->kill();
-#else
-        mProcess->terminate();  // on Linux and macOS, we assume the controller will quit on receiving the SIGTERM signal
-#endif
-      }
-    }
-  } else if (mProcess && mProcess->state() != QProcess::NotRunning)
+  } else if (mTcpSocket) {
+    const int dataSize = sizeof(int) + sizeof(WbDeviceTag) + sizeof(unsigned char);
+    const int size = sizeof(unsigned short) + 2 * sizeof(int) + sizeof(char) + dataSize;
+    stream << (unsigned short)1;    // number of chunks
+    stream << dataSize;             // dataSize, overall
+    stream << dataSize;             // dataSize, this chunk
+    stream << (char)TCP_DATA_TYPE;  // chunk type
+    stream << (int)0;               // time stamp, ignored
+    stream << (unsigned short)0;    // tag of the root device
+    stream << (unsigned char)C_ROBOT_QUIT;
+    assert(size == buffer.size());
+    if (mRobot)
+      mRobot->removeRemoteExternController();
+    if (!mHasBeenTerminatedByItself)
+      sendTerminationPacket(mTcpSocket, buffer, size);
+  } else if (mProcess && mProcess->state() != QProcess::NotRunning) {
     mProcess->terminate();
+    mProcess->deleteLater();
+    mProcess = NULL;
+  }
 
-  delete mSocket;
+  if (mExtern && mRobot) {
+    info(tr("disconnected."));
+    WbControlledWorld::instance()->externConnection(this, false);
+  }
+
   delete mProcess;
+  delete mSocket;
+  if (!mHasBeenTerminatedByItself)
+    delete mTcpSocket;
+  delete mServer;
+  if (!mIpcPath.isEmpty())
+    QDir(mIpcPath).removeRecursively();
+}
+
+template<class T> void WbController::sendTerminationPacket(const T &socket, const QByteArray &buffer, const int size) {
+  socket->disconnect();
+  // eat the latest messages from the controller
+  if (!mRequestPending && socket->isValid()) {
+    socket->waitForReadyRead(1000);
+    socket->readAll();
+  }
+
+  // send the termination packet
+  if (socket->isValid()) {
+    socket->write(buffer.constData(), size);
+    socket->flush();  // otherwise the temination packet is not sent
+  }
+  // kill the process
+  if (mProcess && mProcess->state() != QProcess::NotRunning && !mProcess->waitForFinished(1000)) {
+    WbLog::warning(tr("%1: Forced termination (because process didn't terminate itself after 1 second).").arg(name()));
+#ifdef _WIN32
+    // on Windows, we need to kill the process as it may not handle the WM_CLOSE message sent by terminate()
+    mProcess->kill();
+#else
+    mProcess->terminate();  // on Linux and macOS, we assume the controller will quit on receiving the SIGTERM signal
+#endif
+  }
 }
 
 void WbController::updateName(const QString &name) {
   mName = name;
+}
+
+bool WbController::setTcpSocket(QTcpSocket *socket) {
+  if (mSocket || mTcpSocket) {  // already connected, refusing
+    info(tr("refusing connection attempt from another extern controller."));
+    return false;
+  }
+  const QHostAddress hostAddress(socket->peerAddress().toIPv4Address());
+  const int nAllowedIPs = WbPreferences::instance()->value("Network/nAllowedIPs").toInt();
+  if (!nAllowedIPs) {  // Empty list
+    mTcpSocket = socket;
+    return true;
+  }
+  for (int i = 0; i < nAllowedIPs; i++) {
+    const QString ipKey = "Network/allowedIP" + QString::number(i);
+    const QString ipString = WbPreferences::instance()->value(ipKey).toString();
+    const QStringList ipParts = ipString.split('/');
+    const QHostAddress subnet(ipParts[0]);
+    const int netmask = ipParts.length() == 2 ? ipParts[1].toInt() : 32;
+    if (hostAddress.isInSubnet(subnet, netmask)) {
+      mTcpSocket = socket;
+      return true;
+    }
+  }
+  return false;
 }
 
 void WbController::resetRequestTime() {
@@ -178,67 +243,148 @@ bool WbController::isRunning() const {
 
 // the start() method  never fails: if the controller name is invalid, then the <generic> controller starts instead.
 void WbController::start() {
-  mProcess = new QProcess();
-  connect(mProcess, &QProcess::readyReadStandardOutput, this, &WbController::readStdout);
-  connect(mProcess, &QProcess::readyReadStandardError, this, &WbController::readStderr);
-  connect(mProcess, &QProcess::finished, this, &WbController::processFinished);
-  connect(mProcess, &QProcess::errorOccurred, this, &WbController::processErrorOccurred);
-
   mRobot->setControllerStarted(true);
+  if (mExtern) {
+    QString message;
+    if (mRobot->encodedName() == mRobot->name())
+      message = tr("Waiting for local or remote connection on port %1 targeting robot named '%2'.")
+                  .arg(QString::number(WbStandardPaths::webotsTmpPathId()))
+                  .arg(mRobot->name());
+    else
+      message = tr("Waiting for local or remote connection on port %1 targeting robot named '%2' (%3).")
+                  .arg(QString::number(WbStandardPaths::webotsTmpPathId()))
+                  .arg(mRobot->name())
+                  .arg(mRobot->encodedName());
 
-  if (mControllerPath.isEmpty()) {
-    warn(tr("Could not find the controller directory.\nStarting the <generic> controller instead."));
-    startGenericExecutable();
-  }
-
-  mType = findType(mControllerPath);
-  setProcessEnvironment();
-// on Windows, java is unable to find class in a path including UTF-8 characters (e.g., Chinese)
-#ifdef _WIN32
-  if ((mType == WbFileUtil::CLASS || mType == WbFileUtil::JAR) &&
-      QString(mControllerPath.toUtf8()) != QString::fromLocal8Bit(mControllerPath.toLocal8Bit()))
-    WbLog::warning(tr("\'%1\'\nThe path to this Webots project contains non 8-bit characters. "
-                      "Webots won't be able to execute any Java controller in this path. "
-                      "Please move this Webots project into a folder with only 8-bit characters.")
-                     .arg(mControllerPath));
-#endif
-  switch (mType) {
-    case WbFileUtil::EXECUTABLE:
-      (name() == "<generic>") ? startGenericExecutable() : startExecutable();
-      break;
-    case WbFileUtil::CLASS:
-      startJava();
-      break;
-    case WbFileUtil::JAR:
-      startJava(true);
-      break;
-    case WbFileUtil::PYTHON:
-      startPython();
-      break;
-    case WbFileUtil::MATLAB:
-      startMatlab();
-      break;
-    case WbFileUtil::BOTSTUDIO:
-      startBotstudio();
-      break;
-    case WbFileUtil::DOCKER:
-      startDocker();
-      break;
-    default:
-      reportControllerNotFound();
+    info(message);
+    WbControlledWorld::instance()->externConnection(this, false);
+    if (WbWorld::printExternUrls()) {
+      const QString localUrl = "ipc://" + QString::number(WbStandardPaths::webotsTmpPathId()) + '/' + mRobot->encodedName();
+      const QString remoteUrl =
+        "tcp://<ip_address>:" + QString::number(WbStandardPaths::webotsTmpPathId()) + '/' + mRobot->encodedName();
+      std::cout << localUrl.toUtf8().constData() << std::endl;
+      std::cout << remoteUrl.toUtf8().constData() << std::endl;
+    }
+  } else {
+    mProcess = new QProcess();
+    connect(mProcess, &QProcess::readyReadStandardOutput, this, &WbController::readStdout);
+    connect(mProcess, &QProcess::readyReadStandardError, this, &WbController::readStderr);
+    connect(mProcess, &QProcess::finished, this, &WbController::processFinished);
+    connect(mProcess, &QProcess::errorOccurred, this, &WbController::processErrorOccurred);
+    if (mControllerPath.isEmpty()) {
+      warn(tr("Could not find the controller directory.\nStarting the <generic> controller instead."));
       startGenericExecutable();
-      mType = WbFileUtil::EXECUTABLE;
+    }
+    mType = findType(mControllerPath);
+    setProcessEnvironment();
+    switch (mType) {
+      case WbFileUtil::EXECUTABLE:
+        (name() == "<generic>") ? startGenericExecutable() : startExecutable();
+        break;
+      case WbFileUtil::CLASS:
+        startJava();
+        break;
+      case WbFileUtil::JAR:
+        startJava(true);
+        break;
+      case WbFileUtil::PYTHON:
+        startPython();
+        break;
+      case WbFileUtil::MATLAB:
+        startMatlab();
+        break;
+      case WbFileUtil::BOTSTUDIO:
+        startBotstudio();
+        break;
+      case WbFileUtil::DOCKER:
+        startDocker();
+        break;
+      default:
+        reportControllerNotFound();
+        startGenericExecutable();
+        mType = WbFileUtil::EXECUTABLE;
+    }
   }
-  if (mCommand.isEmpty())  // python has wrong version, Matlab 64 is not available or Docker is not supported
+
+  mIpcPath = WbStandardPaths::webotsTmpPath() + "ipc/" + mRobot->encodedName();
+  QDir().mkpath(mIpcPath);
+  const QString fileName = mIpcPath + '/' + (mExtern ? "extern" : "intern");
+#ifndef _WIN32
+  const QString &serverName = fileName;
+#else
+  const QString serverName = "webots-" + QString::number(WbStandardPaths::webotsTmpPathId()) + "-" + mRobot->encodedName();
+  // create an empty file, so that the controllers can see an extern controller is available here
+  QFile file(fileName);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    WbLog::error(tr("Cannot create empty extern file in '%1'.").arg(fileName));
     return;
+  }
+  file.write("");
+  file.close();
+#endif
+  // recover from a crash, when the previous server instance has not been cleaned up
+  bool success = QLocalServer::removeServer(serverName);
+  if (!success) {
+    WbLog::error(tr("Cannot cleanup the local server (server name = '%1').").arg(serverName));
+    return;
+  }
+  // create a new socket server to get connected with the controller process
+  mServer = new QLocalServer();
+  connect(mServer, &QLocalServer::newConnection, this, &WbController::addLocalControllerConnection);
+  success = mServer->listen(serverName);
+  if (!success) {
+    WbLog::error(tr("Cannot listen to the local server (server name = '%1'): %2").arg(serverName).arg(mServer->errorString()));
+    return;
+  }
+  if (mProcess) {
+    info(tr("Starting controller: %1").arg(commandLine()));
+    // for matlab controllers we must change to the lib/matlab directory
+    // other controller types are executed in the controller dir
+    mProcess->setWorkingDirectory((mType == WbFileUtil::MATLAB) ? WbStandardPaths::controllerLibPath() + "matlab" :
+                                                                  mControllerPath);
+    mProcess->start(mCommand, mArguments);
+  }
+}
 
-  info(tr("Starting controller: %1").arg(commandLine()));
+void WbController::addLocalControllerConnection() {
+  if (mSocket || mTcpSocket) {  // already connected, refusing
+    mServer->nextPendingConnection()->close();
+    info(tr("refusing connection attempt from another extern controller."));
+    return;
+  }
+  if (mExtern) {
+    info(tr("connected."));
+    WbControlledWorld::instance()->externConnection(this, true);
+  }
+  mSocket = mServer->nextPendingConnection();
+  mRobot->setConfigureRequest(true);
 
-  // for matlab controllers we must change to the lib/matlab directory
-  // other controller types are executed in the controller dir
-  mProcess->setWorkingDirectory((mType == WbFileUtil::MATLAB) ? WbStandardPaths::controllerLibPath() + "matlab" :
-                                                                mControllerPath);
-  mProcess->start(mCommand, mArguments);
+  // wb_robot_init performs a wb_robot_step(0) generating a request which has to be catch.
+  // This request is forced because the first packets coming from libController
+  // may be splitted (wb_robot_init() sends firstly the robotId and the robot_step(0) package which have to be eaten there)
+  while (mSocket->bytesAvailable() == 0)
+    mSocket->waitForReadyRead();
+  readRequest();
+  connect(mSocket, &QLocalSocket::readyRead, this, &WbController::readRequest);
+  connect(mSocket, &QLocalSocket::disconnected, this, &WbController::disconnected);
+  writeAnswer();  // send configure message and immediate answers if any
+}
+
+void WbController::addRemoteControllerConnection() {
+  info(tr("connected."));
+  WbControlledWorld::instance()->externConnection(this, true);
+  mRobot->newRemoteExternController();
+  mRobot->setConfigureRequest(true);
+
+  // wb_robot_init performs a wb_robot_step(0) generating a request which has to be catch.
+  // This request is forced because the first packets coming from libController
+  // may be splitted (wb_robot_init() sends firstly the robotId and the robot_step(0) package which have to be eaten there)
+  while (mTcpSocket->bytesAvailable() == 0)
+    mTcpSocket->waitForReadyRead();
+  readRequest();
+  connect(mTcpSocket, &QTcpSocket::readyRead, this, &WbController::readRequest);
+  connect(mTcpSocket, &QTcpSocket::disconnected, this, &WbController::disconnected);
+  writeAnswer();  // send configure message and immediate answers if any
 }
 
 void WbController::addToPathEnvironmentVariable(QProcessEnvironment &env, const QString &key, const QString &value,
@@ -291,13 +437,13 @@ void WbController::setProcessEnvironment() {
   // starts from the parent process environment
   QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
 
-  // store a unique robot ID for the controller
-  env.insert("WEBOTS_ROBOT_ID", QString::number(mRobot->uniqueId()));
+  // store a unique robot name for the controller
+  env.insert("WEBOTS_ROBOT_NAME", mRobot->name());
 
   // Add the Webots lib path to be able to load (at least) libController
   QString ldLibraryPath = WbStandardPaths::controllerLibPath();
   ldLibraryPath.chop(1);
-  addToPathEnvironmentVariable(env, ldEnvironmentVariable, ldLibraryPath, false);
+  addToPathEnvironmentVariable(env, ldEnvironmentVariable, ldLibraryPath, false, true);
   // Remove paths needed by Webots only
 #ifdef _WIN32
   const QString msys64 = QDir::toNativeSeparators(WbStandardPaths::webotsMsys64Path());
@@ -396,7 +542,7 @@ void WbController::setProcessEnvironment() {
   QList<WbNode *> nodes = mRobot->subNodes(true, true, true);
   for (int i = 0; i < nodes.size(); ++i) {
     if (nodes.at(i)->isProtoInstance()) {
-      WbProtoModel *protoModel = nodes.at(i)->proto();
+      const WbProtoModel *protoModel = nodes.at(i)->proto();
       do {
         if (!protoModel->projectPath().isEmpty()) {
           QDir protoProjectDir(protoModel->projectPath());
@@ -404,7 +550,7 @@ void WbController::setProcessEnvironment() {
           if (QDir(protoLibrariesPath).exists())
             librariesSearchPaths << protoLibrariesPath;
         }
-        protoModel = WbProtoList::current()->findModel(protoModel->ancestorProtoName(), "");
+        protoModel = WbProtoManager::instance()->findModel(protoModel->ancestorProtoName(), "", protoModel->diskPath());
       } while (protoModel);
     }
   }
@@ -445,22 +591,7 @@ void WbController::setProcessEnvironment() {
       }
       pythonSourceFile.close();
     }
-#ifdef __APPLE__
-    QProcess process;
-    process.setProcessEnvironment(env);
-    process.start("which", QStringList() << mPythonCommand);
-    process.waitForFinished();
-    const QString output = process.readAll();
-    if (output.startsWith("/usr/local/Cellar/python@"))
-      addToPathEnvironmentVariable(
-        env, "PYTHONPATH", WbStandardPaths::controllerLibPath() + "python" + mPythonShortVersion + "_brew", false, true);
-    else
-      addToPathEnvironmentVariable(env, "PYTHONPATH", WbStandardPaths::controllerLibPath() + "python" + mPythonShortVersion,
-                                   false, true);
-#else
-    addToPathEnvironmentVariable(env, "PYTHONPATH", WbStandardPaths::controllerLibPath() + "python" + mPythonShortVersion,
-                                 false, true);
-#endif
+    addToPathEnvironmentVariable(env, "PYTHONPATH", WbStandardPaths::controllerLibPath() + "python", false, true);
     env.insert("PYTHONIOENCODING", "UTF-8");
   } else if (mType == WbFileUtil::MATLAB) {
     if (mMatlabCommand.isEmpty())
@@ -468,9 +599,14 @@ void WbController::setProcessEnvironment() {
     // these variables are read by lib/matlab/launcher.m
     env.insert("WEBOTS_PROJECT", WbProject::current()->current()->path().toUtf8());
     env.insert("WEBOTS_CONTROLLER_NAME", name().toUtf8());
+#ifdef _WIN32
+    env.insert("WEBOTS_CONTROLLER_ARGS", mRobot->controllerArgs().join(';').toUtf8());
+#else
+    env.insert("WEBOTS_CONTROLLER_ARGS", mRobot->controllerArgs().join(':').toUtf8());
+#endif
     env.insert("WEBOTS_VERSION", WbApplicationInfo::version().toString().toUtf8());
   }
-  env.insert("WEBOTS_TMP_PATH", WbStandardPaths::webotsTmpPath());
+  env.insert("WEBOTS_INSTANCE_PATH", WbStandardPaths::webotsTmpPath());
   // qDebug() << "Environment:";
   // foreach (const QString &element, env)
   //  qDebug() << element;
@@ -478,7 +614,10 @@ void WbController::setProcessEnvironment() {
 }
 
 void WbController::info(const QString &message) {
-  WbLog::info(name() + ": " + message);
+  if (mExtern)
+    WbLog::info(tr("'%1' extern controller: ").arg(mRobot->name()) + message);
+  else
+    WbLog::info(name() + ": " + message);
 }
 
 void WbController::warn(const QString &message) {
@@ -580,7 +719,8 @@ void WbController::reportMissingCommand(const QString &command) {
 
 void WbController::reportFailedStart() {
   warn(tr("failed to start: %1").arg(commandLine()));
-  QString matlabDefaultPath;
+  QString matlabDefaultPath = "/usr/local/MATLAB/R20XXx/bin/matlab";
+  QString preferencesLocation = "Tools > Preferences... > General";
   switch (mType) {
     case WbFileUtil::EXECUTABLE: {
       QFileInfo fi(mCommand);
@@ -605,26 +745,29 @@ void WbController::reportFailedStart() {
       reportMissingCommand("python");
       break;
     case WbFileUtil::MATLAB:
-      if (mCommand == "!")
-        warn(tr("Webots could not find the MATLAB executable in the system. Please provide the correct absolute path to the "
-                "MATLAB executable in the Webots preferences (Tools > Preferences... > General)."));
-      else
-        warn(tr("The MATLAB executable provided in the Webots preferences (Tools > Preferences... > General) could not be "
-                "started. Please provide the correct absolute path to the MATLAB executable."));
-#ifdef __linux__
-      matlabDefaultPath = "/usr/local/MATLAB/R20XXx/bin/matlab";
-#else
+#ifndef __linux__
 #ifdef __APPLE__
       matlabDefaultPath = "/Applications/MATLAB_R20XXx.app";
+      preferencesLocation = "Webots > Preferences... > General";
 #else  // _WIN32
       matlabDefaultPath = "C:\\Program Files\\MATLAB\\R20XXx\\bin\\win64\\MATLAB.exe";
 #endif
 #endif
-      warn(tr("The preference can be left empty to use the default MATLAB installation path: %1").arg(matlabDefaultPath));
+      if (mCommand == "!")
+        warn(tr("Webots could not find the MATLAB executable at the default MATLAB installation path. Please provide the "
+                "correct absolute path to the "
+                "MATLAB executable in the Webots preferences (%1).")
+               .arg(preferencesLocation));
+      else
+        warn(tr("The MATLAB executable could not be started. Please provide the correct absolute path to the MATLAB "
+                "executable in the Webots preferences (%1) or leave it empty to use the default MATLAB installation path: %2")
+               .arg(preferencesLocation)
+               .arg(matlabDefaultPath));
 
       break;
     case WbFileUtil::DOCKER:
       reportMissingCommand("docker");
+      break;
     default:
       break;
   }
@@ -758,9 +901,9 @@ void WbController::startMatlab() {
     mCommand = mMatlabCommand;
 
   mArguments = WbLanguageTools::matlabArguments();
-  mArguments << "-r"
+  mArguments << "-sd" << WbStandardPaths::controllerLibPath() + "matlab"
+             << "-batch"
              << "launcher";
-  mArguments << mRobot->controllerArgs();
 }
 
 void WbController::startBotstudio() {
@@ -794,13 +937,12 @@ void WbController::startDocker() {
     warn(tr("Failed to build the docker image in '%1'.").arg(mControllerPath));
     return;
   }
-  const QStringList dockerArguments = {
-    "run",  "--network",
-    "none",  // add "--cpu-shares", "512",
-    "-v",   WbControlledWorld::instance()->server() + ":" + WbControlledWorld::instance()->server(),
-    "-e",   "WEBOTS_SERVER=" + WbControlledWorld::instance()->server(),
-    "-e",   "WEBOTS_ROBOT_ID=" + QString::number(mRobot->uniqueId()),
-    image};
+  const QStringList dockerArguments = {"run",  "--network",
+                                       "none",  // add "--cpu-shares", "512",
+                                       "-v",   WbStandardPaths::webotsTmpPath() + ":" + WbStandardPaths::webotsTmpPath(),
+                                       "-e",   "WEBOTS_INSTANCE_PATH=" + WbStandardPaths::webotsTmpPath(),
+                                       "-e",   "WEBOTS_ROBOT_NAME=" + mRobot->name(),
+                                       image};  // the raw robot name is set, if needed libController will encode it
   mArguments = dockerArguments + mRobot->controllerArgs();
 #endif
 }
@@ -815,7 +957,7 @@ void WbController::copyBinaryAndDependencies(const QString &filename) {
 
 #ifdef __APPLE__
   // silently change RPATH before launching controller, if the controller is not in the installation path.
-  if (filename.startsWith(WbStandardPaths::webotsHomePath()) || !QFileInfo(filename).isWritable())
+  if (WbFileUtil::isLocatedInInstallationDirectory(filename, true) || !QFileInfo(filename).isWritable())
     return;
 
   QProcess process;
@@ -840,24 +982,6 @@ void WbController::copyBinaryAndDependencies(const QString &filename) {
 #endif
 }
 
-void WbController::setSocket(QLocalSocket *socket) {
-  // associate controller and socket
-  mSocket = socket;
-
-  // wb_robot_init performs a wb_robot_step(0) generating a request which has to be catch.
-  // This request is forced because the first packets coming from libController
-  // may be splitted (wb_robot_init() sends firstly the robotId and the robot_step(0) package which have to be eaten there)
-  while (mSocket->bytesAvailable() == 0)
-    mSocket->waitForReadyRead();
-  readRequest();
-
-  connect(mSocket, SIGNAL(readyRead()), this, SLOT(readRequest()));
-  connect(mRobot, &WbRobot::immediateMessageAdded, this, &WbController::writeImmediateAnswer);
-  connect(mRobot, &WbRobot::userInputEventNeedUpdate, this, &WbController::writeUserInputEventAnswer);
-
-  writeAnswer();  // send configure message and immediate answers if any
-}
-
 int WbController::robotId() const {
   return mRobot->uniqueId();
 }
@@ -875,7 +999,7 @@ QString WbController::commandLine() const {  // returns the command line with do
 }
 
 void WbController::handleControllerExit() {
-  if (mRobot->controllerName() == "<extern>") {
+  if (mExtern) {
     processFinished(0, QProcess::NormalExit);
     mRobot->setControllerNeedRestart();
   }
@@ -883,24 +1007,28 @@ void WbController::handleControllerExit() {
 
 void WbController::writeUserInputEventAnswer() {
   // prepare stream
-  QByteArray buffer;
-  QDataStream stream(&buffer, QIODevice::WriteOnly);
-  stream.setByteOrder(QDataStream::LittleEndian);
-  stream.device()->seek(sizeof(int));  // size, to be overwritten afterwards
-  stream << (int)0;
+  WbDataStream stream(0);
+  if (mTcpSocket)
+    prepareTcpStream(stream);
+
+  int delay = 0;
+  stream << delay;
 
   // dispatch the stream to the devices
   mRobot->setNeedToWriteUserInputEventAnswer();
   mRobot->dispatchAnswer(stream, false);
 
   // size management
-  const int size = stream.device()->pos();
-  stream.device()->seek(0);
-  stream << size;
+  int size = streamSizeManagement(stream);
 
   // write the request
-  mSocket->write(buffer.constData(), size);
-  mSocket->flush();  // sometimes packets are simply not sent without flushing
+  if (mTcpSocket) {
+    mTcpSocket->write(stream.constData(), size);
+    mTcpSocket->flush();  // sometimes packets are simply not sent without flushing
+  } else {
+    mSocket->write(stream.constData(), size);
+    mSocket->flush();  // sometimes packets are simply not sent without flushing
+  }
 }
 
 void WbController::writeAnswer(bool immediateAnswer) {
@@ -911,10 +1039,9 @@ void WbController::writeAnswer(bool immediateAnswer) {
   mHasPendingImmediateAnswer = false;
 
   // prepare stream
-  QByteArray buffer;
-  QDataStream stream(&buffer, QIODevice::WriteOnly);
-  stream.setByteOrder(QDataStream::LittleEndian);
-  stream.device()->seek(sizeof(int));  // size, to be overwritten afterwards
+  WbDataStream stream(0);
+  if (mTcpSocket)
+    prepareTcpStream(stream);
 
   // delay management
   // the time including the controller process time is the
@@ -932,13 +1059,16 @@ void WbController::writeAnswer(bool immediateAnswer) {
     mRobot->writeImmediateAnswer(stream);
 
   // size management
-  const int size = stream.device()->pos();
-  stream.device()->seek(0);
-  stream << size;
+  int size = streamSizeManagement(stream);
 
   // write the request
-  mSocket->write(buffer.constData(), size);
-  mSocket->flush();  // sometimes packets are simply not sent without flushing
+  if (mTcpSocket) {
+    mTcpSocket->write(stream.constData(), size);
+    mTcpSocket->flush();  // sometimes packets are simply not sent without flushing
+  } else {
+    mSocket->write(stream.constData(), size);
+    mSocket->flush();  // sometimes packets are simply not sent without flushing
+  }
 
   // reset request time
   if (!immediateAnswer)
@@ -970,10 +1100,9 @@ void WbController::writeImmediateAnswer() {
     return;
 
   // prepare stream
-  QByteArray buffer;
-  QDataStream stream(&buffer, QIODevice::WriteOnly);
-  stream.setByteOrder(QDataStream::LittleEndian);
-  stream.device()->seek(sizeof(int));  // size, to be overwritten afterwards
+  WbDataStream stream(0);
+  if (mTcpSocket)
+    prepareTcpStream(stream);
 
   // immediate message
   const int delay = -1;
@@ -983,15 +1112,64 @@ void WbController::writeImmediateAnswer() {
   mRobot->writeImmediateAnswer(stream);
 
   // size management
-  const int size = stream.device()->pos();
-
+  int size = streamSizeManagement(stream);
   assert(size > 8);  // the immediate message shouldn't be empty
 
-  stream.device()->seek(0);
-  stream << size;
   // write the request
-  mSocket->write(buffer.constData(), size);
-  mSocket->flush();  // sometimes packets are simply not sent without flushing
+  if (mTcpSocket) {
+    mTcpSocket->write(stream.constData(), size);
+    mTcpSocket->flush();  // sometimes packets are simply not sent without flushing
+  } else {
+    mSocket->write(stream.constData(), size);
+    mSocket->flush();  // sometimes packets are simply not sent without flushing
+  }
+}
+
+void WbController::prepareTcpStream(WbDataStream &stream) {
+  unsigned short nbChunks = 0;
+  int dataSize = 0;
+  int size = 0;
+  unsigned char type = TCP_DATA_TYPE;
+  stream << (unsigned short)(nbChunks);
+  stream << (int)(dataSize);
+  stream << (int)(size);
+  stream << (unsigned char)(type);
+  stream.mSizePtr = sizeof(unsigned short) + sizeof(int);
+  stream.mDataSize = 0;
+}
+
+int WbController::streamSizeManagement(WbDataStream &stream) {
+  unsigned int size = stream.length();
+  if (!mTcpSocket) {
+    size += sizeof(int);
+    QByteArray baSize;
+    for (int i = 0; i != sizeof(size); ++i) {
+      baSize.append((char)((size & (0xFFu << (i * 8))) >> (i * 8)));
+    }
+    stream.prepend(baSize);
+  } else {
+    int chunkSize = stream.length() - stream.mSizePtr;
+    int chunkDataSize = chunkSize - sizeof(int) - sizeof(unsigned char);
+
+    if (chunkDataSize) {
+      // increase first char by 1
+      stream.increaseNbChunks(1);
+
+      // add size and type information for the data chunk
+      WbDataStream newDataMeta;
+      unsigned char newDataType = TCP_DATA_TYPE;
+      newDataMeta << chunkDataSize << newDataType;
+      stream.replace(stream.mSizePtr, sizeof(int) + sizeof(unsigned char), newDataMeta);
+      stream.mDataSize += chunkDataSize;
+    } else
+      stream.remove(stream.mSizePtr, 5);
+
+    size = stream.length();
+    WbDataStream dataSize;
+    dataSize << stream.mDataSize;
+    stream.replace(sizeof(unsigned short), (int)sizeof(int), dataSize);
+  }
+  return size;
 }
 
 // this function matches with the reception of a datagram
@@ -999,11 +1177,14 @@ void WbController::writeImmediateAnswer() {
 // a Webots packet can be splitted into several datagrams
 void WbController::readRequest() {
   mProcessingRequest = true;
-  if (mSocket == NULL || mRobot == NULL)
+  if ((mSocket == NULL && mTcpSocket == NULL) || mRobot == NULL)
     return;
 
   // concat all the data which has not been parsed
-  mRequest += mSocket->readAll();
+  if (mTcpSocket)
+    mRequest += mTcpSocket->readAll();
+  else
+    mRequest += mSocket->readAll();
 
   const bool needToBlockRegeneration = robot()->supervisor();
   if (needToBlockRegeneration)
@@ -1097,4 +1278,25 @@ void WbController::readRequest() {
 void WbController::robotDestroyed() {
   mRobot = NULL;
   WbControlledWorld::instance()->deleteController(this);
+}
+
+void WbController::disconnected() {
+  if (!mHasBeenTerminatedByItself) {
+    if (mSocket) {
+      mSocket->deleteLater();
+      mSocket = NULL;
+    } else if (mTcpSocket) {
+      mRobot->removeRemoteExternController();
+      mTcpSocket->deleteLater();
+      mTcpSocket = NULL;
+    }
+    mRequestPending = false;
+    mProcessingRequest = false;
+    mHasPendingImmediateAnswer = false;
+
+    if (mExtern) {
+      info(tr("disconnected, waiting for new connection."));
+      WbControlledWorld::instance()->externConnection(this, false);
+    }
+  }
 }

@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,7 +36,7 @@ public:
 
   WbMFDouble(WbTokenizer *tokenizer, const QString &worldPath) { read(tokenizer, worldPath); }
   WbMFDouble(const WbMFDouble &other) : mVector(other.mVector) {}
-  virtual ~WbMFDouble() {}
+  virtual ~WbMFDouble() override {}
   WbValue *clone() const override { return new WbMFDouble(*this); }
   bool equals(const WbValue *other) const override;
   void copyFrom(const WbValue *other) override;

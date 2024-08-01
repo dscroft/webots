@@ -1,13 +1,15 @@
 import Animation from './Animation.js';
-import DefaultUrl from './DefaultUrl.js';
+import ImageLoader from './ImageLoader.js';
+import MeshLoader from './MeshLoader.js';
 import MouseEvents from './MouseEvents.js';
 import MultimediaClient from './MultimediaClient.js';
+import Progress from './Progress.js';
 import Selector from './Selector.js';
 import Server from './Server.js';
 import Stream from './Stream.js';
 import SystemInfo from './system_info.js';
-import X3dScene from './X3dScene.js';
-
+import W3dScene from './W3dScene.js';
+import WbCadShape from './nodes/WbCadShape.js';
 import WbVector3 from './nodes/utils/WbVector3.js';
 
 /*
@@ -19,10 +21,10 @@ import WbVector3 from './nodes/utils/WbVector3.js';
  *   connected to a webots instance running on a remote server.
  * @example
  *   // Example: Initialize from a Webots streaming server
- *   const view = new webots.View(document.getElementById("myDiv"));
- *   view.open("ws://localhost:80/simple/worlds/simple.wbt");
- *   // or view.open("ws://localhost:80");
- *   // or view.open("file.x3d");
+ *   const view = new webots.View(document.getElementById('myDiv'));
+ *   view.open('ws://localhost:80/simple/worlds/simple.wbt');
+ *   // or view.open('ws://localhost:80');
+ *   // or view.open('file.w3d');
  *   view.onready = () => {
  *       // the initialization is done
  *   }
@@ -34,6 +36,9 @@ import WbVector3 from './nodes/utils/WbVector3.js';
 let webots = window.webots || {};
 
 webots.View = class View {
+  #isWebSocketProtocol;
+  #server;
+  #w3dDiv;
   constructor(view3D, mobile) {
     webots.currentView = this;
     this.onerror = (text) => {
@@ -53,24 +58,25 @@ webots.View = class View {
       window.history.back(); // go back to the previous page in the navigation history
     };
     this.onresize = () => {
-      if (typeof this.x3dScene !== 'undefined')
-        this.x3dScene.resize();
+      if (typeof this.w3dScene !== 'undefined')
+        this.w3dScene.resize();
       else if (typeof this.multimediaClient !== 'undefined')
         this.multimediaClient.requestNewSize();
 
       const labels = document.getElementsByClassName('webots-label');
       for (let i = labels.length - 1; i >= 0; i--) {
         const element = labels.item(i);
-        element.style.fontSize = this._getHeight(this._x3dDiv) * element.size / 2.25 + 'px'; // 2.25 is an empirical value to match with Webots appearance
-        element.style.left = this._getWidth(this._x3dDiv) * element.x + 'px';
-        element.style.top = this._getHeight(this._x3dDiv) * element.y + 'px';
+        // 2.25 is an empirical value to match with Webots appearance
+        element.style.fontSize = this.#getHeight(this.#w3dDiv) * element.size / 2.25 + 'px';
+        element.style.left = this.#getWidth(this.#w3dDiv) * element.x + 'px';
+        element.style.top = this.#getHeight(this.#w3dDiv) * element.y + 'px';
       }
     };
 
     window.onresize = this.onresize;
 
     this.view3D = view3D;
-    this.view3D.className = view3D.className + ' webotsView';
+    this.view3D.className = view3D.className + ' webots-view';
 
     if (typeof mobile === 'undefined')
       this.mobileDevice = SystemInfo.isMobileDevice();
@@ -89,6 +95,7 @@ webots.View = class View {
     this.timeout = 60 * 1000; // default to one minute
     this.currentState = false;
     this.quitting = false;
+    this.robots = [];
   }
 
   setTimeout(timeout) { // expressed in seconds
@@ -100,14 +107,14 @@ webots.View = class View {
     this.timeout = timeout * 1000; // convert to milliseconds
   }
 
-  setAnimation(url, gui, loop) {
+  setAnimation(animation, gui, loop, raw) {
     if (typeof gui === 'undefined')
       gui = 'play';
     if (typeof loop === 'undefined')
       loop = true;
-    let jsonPromise = new Promise((resolve, reject) => {
+    let jsonPromise = raw ? animation : new Promise((resolve, reject) => {
       let xmlhttp = new XMLHttpRequest();
-      xmlhttp.open('GET', url, true);
+      xmlhttp.open('GET', animation, true);
       xmlhttp.overrideMimeType('application/json');
       xmlhttp.onload = () => {
         if (xmlhttp.status === 200 || xmlhttp.status === 0)
@@ -117,50 +124,47 @@ webots.View = class View {
       };
       xmlhttp.send();
     });
-    this.animation = new Animation(jsonPromise, this.x3dScene, this, gui, loop);
+    this.animation = new Animation(jsonPromise, this.w3dScene, this, gui, loop);
   }
 
-  open(url, mode) {
+  open(url, mode, thumbnail, raw) {
     this.url = url;
     if (typeof mode === 'undefined')
-      mode = 'x3d';
+      mode = 'w3d';
     this.mode = mode;
-
-    const initWorld = () => {
-      if (typeof this.progress === 'undefined') {
-        this.progress = document.createElement('div');
-        this.progress.id = 'webots-progress';
-        this.progress.innerHTML = "<div><img src='" + DefaultUrl.wwiImagesUrl() + "load_animation.gif'>" +
-        "</div><div id='webots-progress-message'>Initializing...</div>" +
-        "</div><div id='webots-progress-percent'></div>";
-        this.view3D.appendChild(this.progress);
-      }
+    const initWorld = async() => {
+      if (typeof this.progress === 'undefined')
+        this.progress = new Progress(this.view3D, 'Initializing...', thumbnail);
 
       if (document.getElementById('webots-progress'))
         document.getElementById('webots-progress').style.display = 'block';
 
-      if (this._isWebSocketProtocol) {
+      if (this.#isWebSocketProtocol) {
         if (this.url.endsWith('.wbt')) { // url expected form: "wss://localhost:1999/simple/worlds/simple.wbt" or
           // "http://localhost/1999/session?url=https://github.com/cyberbotics/webots/blob/master/projects/languages/python/worlds/example.wbt"
           // "https://webots.cloud/ajax/server/session.php?url=https://github.com/cyberbotics/webots/blob/master/projects/languages/python/worlds/example.wbt"
-          this._server = new Server(this.url, this, finalizeWorld);
-          this._server.connect();
+          this.#server = new Server(this.url, this, finalizeWorld);
+          this.#server.connect();
         } else { // url expected form: "ws://cyberbotics1.epfl.ch:80"
           const httpServerUrl = 'http' + this.url.slice(2); // replace 'ws'/'wss' with 'http'/'https'
           this.stream = new Stream(this.url, this, finalizeWorld);
-          if (typeof this.x3dScene !== 'undefined')
-            this.x3dScene.prefix = httpServerUrl + '/';
+          ImageLoader.stream = true;
+          MeshLoader.stream = true;
+          WbCadShape.stream = true;
+          this.prefix = httpServerUrl + '/';
           this.stream.connect();
         }
-      } else // assuming it's an URL to a .x3d file
-        this.x3dScene.loadWorldFile(this.url, finalizeWorld);
+      } else { // assuming it's an URL to a .w3d file
+        if (raw)
+          await this.w3dScene.loadRawWorldFile(this.url, finalizeWorld, this.progress);
+        else
+          await this.w3dScene.loadWorldFile(this.url, finalizeWorld, this.progress);
+      }
     };
 
     const finalizeWorld = () => {
-      if (document.getElementById('webots-progress-message'))
-        document.getElementById('webots-progress-message').innerHTML = 'Loading World...';
-      if (typeof this.x3dScene !== 'undefined') {
-        if (!this._isWebSocketProtocol) { // skip robot windows initialization
+      if (typeof this.w3dScene !== 'undefined') {
+        if (!this.#isWebSocketProtocol) { // skip robot windows initialization
           if (typeof this.animation !== 'undefined')
             this.animation.init(loadFinalize);
           else
@@ -174,9 +178,8 @@ webots.View = class View {
     };
 
     let loadFinalize = () => {
-      if (typeof this.multimediaClient !== 'undefined')
-        // finalize multimedia client
-        this.multimediaClient.finalize();
+      // finalize multimedia client
+      this.multimediaClient?.finalize();
 
       if (typeof this.onready === 'function')
         this.onready();
@@ -184,40 +187,45 @@ webots.View = class View {
 
     if (this.broadcast)
       this.setTimeout(-1);
-    this._isWebSocketProtocol = this.url.startsWith('ws://') || this.url.startsWith('wss://') || this.url.endsWith('.wbt');
+    this.#isWebSocketProtocol = this.url.startsWith('ws://') || this.url.startsWith('wss://') || this.url.endsWith('.wbt');
 
-    const texturePathPrefix = url.includes('/') ? url.substring(0, url.lastIndexOf('/') + 1) : '';
+    let texturePathPrefix;
+    if (!raw)
+      texturePathPrefix = url.includes('/') ? url.substring(0, url.lastIndexOf('/') + 1) : '';
 
     if (mode === 'mjpeg') {
       this.url = url;
       this.multimediaClient = new MultimediaClient(this, this.view3D);
-    } else if (typeof this.x3dScene === 'undefined') {
-      this._x3dDiv = document.getElementById('view3d');
-      if (this._x3dDiv === null || typeof this._x3dDiv === 'undefined') {
-        this._x3dDiv = document.createElement('div');
-        this._x3dDiv.id = 'view3d';
-        this.view3D.appendChild(this._x3dDiv);
+    } else if (typeof this.w3dScene === 'undefined') {
+      this.#w3dDiv = document.getElementById('view3d');
+      if (this.#w3dDiv === null || typeof this.#w3dDiv === 'undefined') {
+        this.#w3dDiv = document.createElement('div');
+        this.#w3dDiv.id = 'view3d';
+        this.view3D.appendChild(this.#w3dDiv);
       }
 
-      this._x3dDiv.className = 'webots-3d-view';
-      this.x3dScene = new X3dScene(this._x3dDiv);
-      this.x3dScene.init(texturePathPrefix);
+      this.#w3dDiv.className = 'webots-3d-view';
+      this.w3dScene = new W3dScene(this.#w3dDiv);
+      this.w3dScene.init(texturePathPrefix);
       let param = document.createElement('param');
       param.name = 'show-progress';
       param.value = false;
-      this.x3dScene.domElement.appendChild(param);
+      this.w3dScene.domElement.appendChild(param);
     } else {
-      if (typeof this._x3dDiv !== 'undefined') {
-        this.view3D.appendChild(this._x3dDiv);
-        this.x3dScene.prefix = texturePathPrefix;
+      if (typeof this.#w3dDiv !== 'undefined') {
+        this.view3D.appendChild(this.#w3dDiv);
+        this.prefix = texturePathPrefix;
       }
-      if (typeof this.progress !== 'undefined')
-        this.view3D.appendChild(this.progress);
+      if (typeof this.progress !== 'undefined') {
+        if (document.getElementById('progress'))
+          document.getElementById('progress').remove();
+        this.progress = new Progress(this.view3D, 'Initializing...', thumbnail);
+      }
     }
 
-    if (typeof this.x3dScene !== 'undefined' && typeof this.mouseEvents === 'undefined') {
+    if (typeof this.w3dScene !== 'undefined' && typeof this.mouseEvents === 'undefined') {
       let canvas = document.getElementById('canvas');
-      this.mouseEvents = new MouseEvents(this.x3dScene, canvas, this.mobileDevice);
+      this.mouseEvents = new MouseEvents(this.w3dScene, canvas, this.mobileDevice);
     }
 
     initWorld();
@@ -226,8 +234,8 @@ webots.View = class View {
   close() {
     if (this.multimediaClient)
       this.multimediaClient.disconnect();
-    if (this._server && this._server.socket)
-      this._server.socket.close();
+    if (this.#server && this.#server.socket)
+      this.#server.socket.close();
     if (this.stream)
       this.stream.close();
 
@@ -244,11 +252,14 @@ webots.View = class View {
 
     const existingCurrentWorld = typeof this.currentWorld !== 'undefined';
     this.currentWorld = currentWorld;
+    ImageLoader.currentWorld = currentWorld;
+    MeshLoader.currentWorld = currentWorld;
     this.worlds = worlds;
 
     if (existingCurrentWorld) {
       const webotsView = document.getElementsByTagName('webots-view')[0];
-      if (webotsView && typeof webotsView.toolbar !== 'undefined' && typeof webotsView.toolbar.worldSelectionPane !== 'undefined') {
+      if (webotsView && typeof webotsView.toolbar !== 'undefined' &&
+        typeof webotsView.toolbar.worldSelectionPane !== 'undefined') {
         document.getElementById('world-selection-pane').remove();
         webotsView.toolbar.createWorldSelectionPane();
       }
@@ -261,22 +272,26 @@ webots.View = class View {
       labelElement = document.createElement('div');
       labelElement.id = 'label' + properties.id;
       labelElement.className = 'webots-label';
-      this._x3dDiv.appendChild(labelElement);
+      this.#w3dDiv.appendChild(labelElement);
     }
 
-    let font = properties.font.split('/');
-    font = font[font.length - 1].replace('.ttf', '');
+    if (properties.font) {
+      let font = properties.font.split('/');
+      font = font[font.length - 1].replace('.ttf', '');
 
-    labelElement.style.fontFamily = font;
+      labelElement.style.fontFamily = font;
+    }
+
     labelElement.style.color = 'rgba(' + properties.color + ')';
-    labelElement.style.fontSize = this._getHeight(this._x3dDiv) * properties.size / 2.25 + 'px'; // 2.25 is an empirical value to match with Webots appearance
-    labelElement.style.left = this._getWidth(this._x3dDiv) * properties.x + 'px';
-    labelElement.style.top = this._getHeight(this._x3dDiv) * properties.y + 'px';
+    // 2.25 is an empirical value to match with Webots appearance
+    labelElement.style.fontSize = this.#getHeight(this.#w3dDiv) * properties.size / 2.25 + 'px';
+    labelElement.style.left = this.#getWidth(this.#w3dDiv) * properties.x + 'px';
+    labelElement.style.top = this.#getHeight(this.#w3dDiv) * properties.y + 'px';
     labelElement.x = properties.x;
     labelElement.y = properties.y;
     labelElement.size = properties.size;
 
-    if (properties.text.includes('█')) {
+    if (properties.text && properties.text.includes('█')) {
       properties.text = properties.text.replaceAll('█', '<span style="background:' + labelElement.style.color + '"> </span>');
       labelElement.style.zIndex = '1';
     }
@@ -293,8 +308,7 @@ webots.View = class View {
   }
 
   resetSimulation() {
-    if (document.getElementById('webots-progress'))
-      document.getElementById('webots-progress').style.display = 'none';
+    this.progress.setProgressBar('none');
     this.removeLabels();
     if (document.getElementById('webots-clock'))
       document.getElementById('webots-clock').innerHTML = webots.parseMillisecondsIntoReadableTime(0);
@@ -304,22 +318,18 @@ webots.View = class View {
     if (this.broadcast)
       return;
     this.close();
-    if (document.getElementById('webots-progress-message'))
-      document.getElementById('webots-progress-message').innerHTML = 'Bye bye...';
-    if (document.getElementById('webots-progress'))
-      document.getElementById('webots-progress').style.display = 'block';
+    this.progress.setProgressBar('block', 'Bye bye...', 'hidden', 'See you soon!');
     setTimeout(() => {
-      if (document.getElementById('webots-progress'))
-        document.getElementById('webots-progress').style.display = 'none';
-    }, 1000);
+      this.progress.setProgressBar('none');
+    }, 5000);
     this.quitting = true;
     this.onquit();
   }
 
   destroyWorld() {
-    if (typeof this.x3dScene !== 'undefined')
-      this.x3dScene.destroyWorld();
+    this.w3dScene?.destroyWorld();
     this.removeLabels();
+    this.robots = [];
 
     if (typeof this.mouseEvents !== 'undefined' && typeof this.mouseEvents.picker !== 'undefined') {
       this.mouseEvents.picker.selectedId = -1;
@@ -328,12 +338,12 @@ webots.View = class View {
     }
   }
 
-  _getHeight(el) {
+  #getHeight(el) {
     const s = window.getComputedStyle(el, null);
     return el.clientHeight - parseInt(s.getPropertyValue('padding-top')) - parseInt(s.getPropertyValue('padding-bottom'));
   }
 
-  _getWidth(el) {
+  #getWidth(el) {
     const s = window.getComputedStyle(el, null);
     return el.clientWidth - parseInt(s.getPropertyValue('padding-right')) - parseInt(s.getPropertyValue('padding-left'));
   }

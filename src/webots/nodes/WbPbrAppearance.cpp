@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -72,9 +72,9 @@ WbPbrAppearance::WbPbrAppearance(const WbNode &other) : WbAbstractAppearance(oth
 
 WbPbrAppearance::WbPbrAppearance(const aiMaterial *material, const QString &filePath) :
   WbAbstractAppearance("PBRAppearance", material) {
-  aiColor3D baseColor(1.0f, 1.0f, 1.0f);
-  material->Get(AI_MATKEY_COLOR_DIFFUSE, baseColor);
-  mBaseColor = new WbSFColor(baseColor[0], baseColor[1], baseColor[2]);
+  aiColor3D baseColorCode(1.0f, 1.0f, 1.0f);
+  material->Get(AI_MATKEY_COLOR_DIFFUSE, baseColorCode);
+  mBaseColor = new WbSFColor(baseColorCode[0], baseColorCode[1], baseColorCode[2]);
 
   aiColor3D emissiveColor(0.0f, 0.0f, 0.0f);
   material->Get(AI_MATKEY_COLOR_EMISSIVE, emissiveColor);
@@ -84,14 +84,14 @@ WbPbrAppearance::WbPbrAppearance(const aiMaterial *material, const QString &file
   material->Get(AI_MATKEY_OPACITY, opacity);
   mTransparency = new WbSFDouble(1.0 - opacity);
 
-  float roughness = 1.0f;
-  if (material->Get(AI_MATKEY_SHININESS, roughness) == AI_SUCCESS)
-    roughness = 1.0 - roughness / 255.0;
-  else if (material->Get(AI_MATKEY_SHININESS_STRENGTH, roughness) == AI_SUCCESS)
-    roughness = 1.0 - roughness;
-  else if (material->Get(AI_MATKEY_REFLECTIVITY, roughness) == AI_SUCCESS)
-    roughness = 1.0 - roughness;
-  mRoughness = new WbSFDouble(roughness);
+  float r = 1.0f;
+  if (material->Get(AI_MATKEY_SHININESS, r) == AI_SUCCESS)
+    r = 1.0 - r / 255.0;
+  else if (material->Get(AI_MATKEY_SHININESS_STRENGTH, r) == AI_SUCCESS)
+    r = 1.0 - r;
+  else if (material->Get(AI_MATKEY_REFLECTIVITY, r) == AI_SUCCESS)
+    r = 1.0 - r;
+  mRoughness = new WbSFDouble(r);
 
   mMetalness = new WbSFDouble(0.0);
   mIblStrength = new WbSFDouble(1.0);
@@ -100,6 +100,7 @@ WbPbrAppearance::WbPbrAppearance(const aiMaterial *material, const QString &file
   mEmissiveIntensity = new WbSFDouble(1.0);
 
   // initialize maps
+  WbNode::setGlobalParentNode(this);
   if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0)
     mBaseColorMap = new WbSFNode(new WbImageTexture(material, aiTextureType_BASE_COLOR, filePath));
   else if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0)
@@ -107,16 +108,19 @@ WbPbrAppearance::WbPbrAppearance(const aiMaterial *material, const QString &file
   else
     mBaseColorMap = new WbSFNode(NULL);
 
+  WbNode::setGlobalParentNode(this);
   if (material->GetTextureCount(aiTextureType_DIFFUSE_ROUGHNESS) > 0)
     mRoughnessMap = new WbSFNode(new WbImageTexture(material, aiTextureType_DIFFUSE_ROUGHNESS, filePath));
   else
     mRoughnessMap = new WbSFNode(NULL);
 
+  WbNode::setGlobalParentNode(this);
   if (material->GetTextureCount(aiTextureType_METALNESS) > 0)
     mMetalnessMap = new WbSFNode(new WbImageTexture(material, aiTextureType_METALNESS, filePath));
   else
     mMetalnessMap = new WbSFNode(NULL);
 
+  WbNode::setGlobalParentNode(this);
   if (material->GetTextureCount(aiTextureType_NORMALS) > 0)
     mNormalMap = new WbSFNode(new WbImageTexture(material, aiTextureType_NORMALS, filePath));
   else if (material->GetTextureCount(aiTextureType_NORMAL_CAMERA) > 0)
@@ -124,6 +128,7 @@ WbPbrAppearance::WbPbrAppearance(const aiMaterial *material, const QString &file
   else
     mNormalMap = new WbSFNode(NULL);
 
+  WbNode::setGlobalParentNode(this);
   if (material->GetTextureCount(aiTextureType_AMBIENT_OCCLUSION) > 0)
     mOcclusionMap = new WbSFNode(new WbImageTexture(material, aiTextureType_AMBIENT_OCCLUSION, filePath));
   else if (material->GetTextureCount(aiTextureType_LIGHTMAP) > 0)
@@ -131,6 +136,7 @@ WbPbrAppearance::WbPbrAppearance(const aiMaterial *material, const QString &file
   else
     mOcclusionMap = new WbSFNode(NULL);
 
+  WbNode::setGlobalParentNode(this);
   if (material->GetTextureCount(aiTextureType_EMISSION_COLOR) > 0)
     mEmissiveColorMap = new WbSFNode(new WbImageTexture(material, aiTextureType_EMISSION_COLOR, filePath));
   else if (material->GetTextureCount(aiTextureType_EMISSIVE) > 0)
@@ -219,7 +225,7 @@ void WbPbrAppearance::preFinalize() {
 
   if (cInstanceCounter == 0) {
     WbWrenOpenGlContext::makeWrenCurrent();
-    const int quality = WbPreferences::instance()->value("OpenGL/textureQuality", 2).toInt();
+    const int quality = WbPreferences::instance()->value("OpenGL/textureQuality", 4).toInt() / 2;
     const int resolution = pow(2, 6 + quality);  // 0: 64, 1: 128, 2: 256
     cBrdfTexture = wr_texture_cubemap_bake_brdf(WbWrenShaders::iblBrdfBakingShader(), resolution);
     WbWrenOpenGlContext::doneWren();
@@ -305,6 +311,8 @@ void WbPbrAppearance::setEmissiveColor(const WbRgb &color) {
 void WbPbrAppearance::createWrenObjects() {
   WbAbstractAppearance::createWrenObjects();
 
+  sanitizeFields();
+
   if (baseColorMap())
     baseColorMap()->createWrenObjects();
 
@@ -386,11 +394,11 @@ WrMaterial *WbPbrAppearance::modifyWrenMaterial(WrMaterial *wrenMaterial) {
   wr_material_set_texture_enable_mip_maps(wrenMaterial, false, 5);
   wr_material_set_texture_enable_interpolation(wrenMaterial, false, 5);
 
-  const float baseColor[] = {static_cast<float>(mBaseColor->red()), static_cast<float>(mBaseColor->green()),
-                             static_cast<float>(mBaseColor->blue())};
+  const float newBaseColor[] = {static_cast<float>(mBaseColor->red()), static_cast<float>(mBaseColor->green()),
+                                static_cast<float>(mBaseColor->blue())};
 
-  const float emissiveColor[] = {static_cast<float>(mEmissiveColor->red()), static_cast<float>(mEmissiveColor->green()),
-                                 static_cast<float>(mEmissiveColor->blue())};
+  const float newEmissiveColor[] = {static_cast<float>(mEmissiveColor->red()), static_cast<float>(mEmissiveColor->green()),
+                                    static_cast<float>(mEmissiveColor->blue())};
 
   float backgroundColor[] = {0.0, 0.0, 0.0};
 
@@ -402,9 +410,9 @@ WrMaterial *WbPbrAppearance::modifyWrenMaterial(WrMaterial *wrenMaterial) {
   }
 
   // set material properties
-  wr_pbr_material_set_all_parameters(wrenMaterial, backgroundColor, baseColor, mTransparency->value(), mRoughness->value(),
+  wr_pbr_material_set_all_parameters(wrenMaterial, backgroundColor, newBaseColor, mTransparency->value(), mRoughness->value(),
                                      mMetalness->value(), backgroundLuminosity * mIblStrength->value(),
-                                     mNormalMapFactor->value(), mOcclusionMapStrength->value(), emissiveColor,
+                                     mNormalMapFactor->value(), mOcclusionMapStrength->value(), newEmissiveColor,
                                      mEmissiveIntensity->value());
 
   return wrenMaterial;
@@ -604,29 +612,29 @@ void WbPbrAppearance::exportNodeSubNodes(WbWriter &writer) const {
     return;
   }
 
-  if (writer.isX3d()) {
+  if (writer.isW3d()) {
     if (baseColorMap()) {
-      baseColorMap()->setRole("baseColor");
+      baseColorMap()->setRole("baseColorMap");
       baseColorMap()->write(writer);
     }
     if (roughnessMap()) {
-      roughnessMap()->setRole("roughness");
+      roughnessMap()->setRole("roughnessMap");
       roughnessMap()->write(writer);
     }
     if (metalnessMap()) {
-      metalnessMap()->setRole("metalness");
+      metalnessMap()->setRole("metalnessMap");
       metalnessMap()->write(writer);
     }
     if (normalMap()) {
-      normalMap()->setRole("normal");
+      normalMap()->setRole("normalMap");
       normalMap()->write(writer);
     }
     if (occlusionMap()) {
-      occlusionMap()->setRole("occlusion");
+      occlusionMap()->setRole("occlusionMap");
       occlusionMap()->write(writer);
     }
     if (emissiveColorMap()) {
-      emissiveColorMap()->setRole("emissiveColor");
+      emissiveColorMap()->setRole("emissiveColorMap");
       emissiveColorMap()->write(writer);
     }
 
@@ -635,19 +643,17 @@ void WbPbrAppearance::exportNodeSubNodes(WbWriter &writer) const {
   }
 }
 
-void WbPbrAppearance::exportNodeFields(WbWriter &writer) const {
-  WbAbstractAppearance::exportNodeFields(writer);
-  if (writer.isX3d()) {
-    foreach (WbField *field, fields())
-      if (field->singleType() != WB_SF_NODE)
-        field->write(writer);
-  }
-}
-
-QStringList WbPbrAppearance::fieldsToSynchronizeWithX3D() const {
+QStringList WbPbrAppearance::fieldsToSynchronizeWithW3d() const {
   QStringList fields;
   fields << "baseColor"
-         << "emissiveColor";
+         << "emissiveColor"
+         << "roughness"
+         << "metalness"
+         << "IBLStrength"
+         << "normalMapFactor"
+         << "occlusionMapStrength"
+         << "emissiveIntensity"
+         << "transparency";
   return fields;
 }
 
@@ -657,47 +663,37 @@ bool WbPbrAppearance::exportNodeHeader(WbWriter &writer) const {
   return WbAbstractAppearance::exportNodeHeader(writer);
 }
 
-void WbPbrAppearance::exportShallowNode(WbWriter &writer) const {
-  if (!writer.isX3d())
+void WbPbrAppearance::exportShallowNode(const WbWriter &writer) const {
+  if (!writer.isW3d())
     return;
 
-  writer << "<PBRAppearance ";
-  writer << "baseColor='" << mBaseColor->value().toString(WbPrecision::FLOAT_MAX) << "' ";
-  writer << "emissiveColor='" << mEmissiveColor->value().toString(WbPrecision::FLOAT_MAX) << "' ";
-  writer << "transparency='" << WbPrecision::doubleToString(mTransparency->value(), WbPrecision::FLOAT_MAX) << "' ";
-  writer << "roughness='" << WbPrecision::doubleToString(mRoughness->value(), WbPrecision::FLOAT_MAX) << "' ";
-  writer << "metalness='" << WbPrecision::doubleToString(mMetalness->value(), WbPrecision::FLOAT_MAX) << "' ";
-  writer << "normalMapFactor='" << WbPrecision::doubleToString(mNormalMapFactor->value(), WbPrecision::FLOAT_MAX) << "' ";
-  writer << "emissiveIntensity='" << WbPrecision::doubleToString(mEmissiveIntensity->value(), WbPrecision::FLOAT_MAX) << "' ";
-  writer << "occlusionMapStrength='" << WbPrecision::doubleToString(mOcclusionMapStrength->value(), WbPrecision::FLOAT_MAX)
-         << "'>";
-
   if (baseColorMap()) {
-    baseColorMap()->setRole("baseColor");
     baseColorMap()->exportShallowNode(writer);
   }
 
   if (roughnessMap()) {
-    roughnessMap()->setRole("roughness");
-    roughnessMap()->write(writer);
+    roughnessMap()->exportShallowNode(writer);
   }
 
   if (metalnessMap()) {
-    metalnessMap()->setRole("metalness");
-    metalnessMap()->write(writer);
+    metalnessMap()->exportShallowNode(writer);
   }
   if (normalMap()) {
-    normalMap()->setRole("normal");
-    normalMap()->write(writer);
+    normalMap()->exportShallowNode(writer);
   }
   if (occlusionMap()) {
-    occlusionMap()->setRole("occlusion");
-    occlusionMap()->write(writer);
+    occlusionMap()->exportShallowNode(writer);
   }
   if (emissiveColorMap()) {
-    emissiveColorMap()->setRole("emissiveColor");
-    emissiveColorMap()->write(writer);
+    emissiveColorMap()->exportShallowNode(writer);
   }
+}
 
-  writer << "</PBRAppearance>";
+void WbPbrAppearance::sanitizeFields() {
+  WbFieldChecker::resetDoubleIfNotInRangeWithIncludedBounds(this, mTransparency, 0.0, 1.0, 0.0);
+  WbFieldChecker::resetDoubleIfNotInRangeWithIncludedBounds(this, mRoughness, 0.0, 1.0, 0.0);
+  WbFieldChecker::resetDoubleIfNotInRangeWithIncludedBounds(this, mMetalness, 0.0, 1.0, 0.0);
+  WbFieldChecker::resetDoubleIfNegative(this, mIblStrength, 1.0);
+  WbFieldChecker::resetDoubleIfNegative(this, mNormalMapFactor, 1.0);
+  WbFieldChecker::resetDoubleIfNegative(this, mOcclusionMapStrength, 1.0);
 }

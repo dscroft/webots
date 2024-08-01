@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -44,13 +44,13 @@
 
 WbFieldModel::WbFieldModel(WbTokenizer *tokenizer, const QString &worldPath) {
   QString nw(tokenizer->nextWord());
-  if (nw != "field" && nw != "vrmlField" && nw != "hiddenField" && nw != "hidden" && nw != "deprecatedField" &&
+  if (nw != "field" && nw != "w3dField" && nw != "hiddenField" && nw != "hidden" && nw != "deprecatedField" &&
       nw != "unconnectedField") {
     tokenizer->reportError(QObject::tr("Expected field type but found '%2'").arg(nw), tokenizer->lastToken());
     throw 0;
   }
 
-  mIsVrml = nw == "vrmlField";
+  mIsW3d = nw == "w3dField";
   mIsDeprecated = nw == "deprecatedField";
   mIsHiddenField = mIsDeprecated || nw == "hiddenField";
   mIsHiddenParameter = nw == "hidden";
@@ -100,7 +100,7 @@ WbFieldModel::WbFieldModel(WbTokenizer *tokenizer, const QString &worldPath) {
     bool defaultValueIsValid = true;
     while (!isValueAccepted(mDefaultValue, &refusedIndex)) {
       defaultValueIsValid = false;
-      WbMultipleValue *multipleValue = dynamic_cast<WbMultipleValue *>(mDefaultValue);
+      const WbMultipleValue *multipleValue = dynamic_cast<WbMultipleValue *>(mDefaultValue);
       if (multipleValue)
         mAcceptedValues << multipleValue->variantValue(refusedIndex);
       else {
@@ -177,7 +177,7 @@ WbValue *WbFieldModel::createValueForVrmlType(const QString &type, WbTokenizer *
 }
 
 QList<WbVariant> WbFieldModel::getAcceptedValues(const QString &type, WbTokenizer *tokenizer, const QString &worldPath) {
-  QList<WbVariant> acceptedValues;
+  QList<WbVariant> values;
   while (tokenizer->nextWord() != '}') {
     tokenizer->ungetToken();
     const WbSingleValue *singleValue =
@@ -192,10 +192,10 @@ QList<WbVariant> WbFieldModel::getAcceptedValues(const QString &type, WbTokenize
       QObject::connect(&variant, &QObject::destroyed, copy, &QObject::deleteLater);
     }
 
-    acceptedValues << variant;
+    values << variant;
     delete singleValue;
   }
-  return acceptedValues;
+  return values;
 }
 
 bool WbFieldModel::isValueAccepted(const WbValue *value, int *refusedIndex) const {

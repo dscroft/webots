@@ -1,5 +1,4 @@
 # needed to execute webots-bin.exe (64 bit binary)
-/mingw64/bin/libassimp-5.dll
 /mingw64/bin/libb2-1.dll
 /mingw64/bin/libbrotlicommon.dll
 /mingw64/bin/libbrotlidec.dll
@@ -13,24 +12,13 @@
 /mingw64/bin/libicuin??.dll
 /mingw64/bin/libicuuc??.dll
 /mingw64/bin/libintl-8.dll
-/mingw64/bin/libjasper-4.dll
-/mingw64/bin/libjpeg-8.dll
-/mingw64/bin/liblcms2-2.dll
-/mingw64/bin/liblzma-5.dll
 /mingw64/bin/libmd4c.dll
 /mingw64/bin/libminizip-1.dll
 /mingw64/bin/libopenal-1.dll
-/mingw64/bin/libpcre-1.dll
+/mingw64/bin/libpcre2-8-0.dll
 /mingw64/bin/libpcre2-16-0.dll
 /mingw64/bin/libpng16-16.dll
-/mingw64/bin/libsqlite3-0.dll
-/mingw64/bin/libwebp-7.dll
-/mingw64/bin/libwebpdecoder-3.dll
-/mingw64/bin/libwoff2common.dll
-/mingw64/bin/libwoff2dec.dll
-/mingw64/bin/libxml2-2.dll
-/mingw64/bin/libxslt-1.dll
-/mingw64/bin/libzzip.dll
+/mingw64/bin/libssl-3-x64.dll
 /mingw64/bin/Qt6Core.dll
 /mingw64/bin/Qt6Gui.dll
 /mingw64/bin/Qt6Network.dll
@@ -41,9 +29,10 @@
 /mingw64/bin/Qt6WebSockets.dll
 /mingw64/bin/Qt6Widgets.dll
 /mingw64/bin/Qt6Xml.dll
+# Qt6 dependencies
 /mingw64/share/qt6/plugins/imageformats/qjpeg.dll
+/mingw64/bin/libjpeg-8.dll
 /mingw64/share/qt6/plugins/platforms/qwindows.dll
-/mingw64/share/qt6/plugins/styles/qwindowsvistastyle.dll
 /mingw64/share/qt6/plugins/tls/qcertonlybackend.dll
 /mingw64/share/qt6/plugins/tls/qopensslbackend.dll
 /mingw64/share/qt6/plugins/tls/qschannelbackend.dll
@@ -54,19 +43,6 @@
 
 # needed by Webots to make movies (ffmpeg.exe dependencies are automatically computed)
 /mingw64/bin/ffmpeg.exe
-
-# needed to execute the lua-gd module
-/mingw64/bin/imagequant.dll
-/mingw64/bin/libavif.dll
-/mingw64/bin/libde265-0.dll
-/mingw64/bin/libdeflate.dll
-/mingw64/bin/libgd.dll
-/mingw64/bin/libheif.dll
-/mingw64/bin/libjbig-0.dll
-/mingw64/bin/libLerc.dll
-/mingw64/bin/libtiff-5.dll
-/mingw64/bin/libXpm-noX4.dll
-/mingw64/bin/rav1e.dll
 
 # needed run the darwin-op remote control library
 /mingw64/bin/libssh.dll
@@ -80,3 +56,6 @@
 
 # needed to recompile the Qt-based robot windows (darwin-op)
 /mingw64/share/qt6/bin/moc.exe
+
+# needed to execute make (Makefile)
+/usr/bin/msys-2.0.dll

@@ -1,3 +1,4 @@
+import WbPose from './WbPose.js';
 import WbSolid from './WbSolid.js';
 import WbVector2 from './utils/WbVector2.js';
 import WbVector3 from './utils/WbVector3.js';
@@ -6,18 +7,34 @@ import WbWorld from './WbWorld.js';
 
 import WbBeltPosition from './utils/WbBeltPosition.js';
 import WbPathSegment from './utils/WbPathSegment.js';
-import {clampedAcos, getAnId} from './utils/utils.js';
+import { getAnId } from './utils/id_provider.js';
+import { clampedAcos } from './utils/math_utilities.js';
+import { WbNodeType } from './wb_node_type.js';
 
 export default class WbTrack extends WbSolid {
-  constructor(id, translation, scale, rotation, geometriesCount) {
-    super(id, translation, scale, rotation);
+  #device;
+  constructor(id, translation, rotation, name, geometriesCount) {
+    super(id, translation, rotation, name);
     this.geometriesCount = geometriesCount;
     this.pathList = [];
     this.wheelsList = [];
     this.beltElements = [];
     this.beltPositions = [];
+    this.#device = [];
     this.linearSpeed = 0;
     this.animationStepSize = 0;
+  }
+
+  get nodeType() {
+    return WbNodeType.WB_NODE_TRACK;
+  }
+
+  get device() {
+    return this.#device;
+  }
+
+  set device(device) {
+    this.#device = device;
   }
 
   delete() {
@@ -37,12 +54,21 @@ export default class WbTrack extends WbSolid {
     for (let i = 0; i < this.geometriesCount; ++i) {
       beltPosition = this.computeNextGeometryPosition(beltPosition, stepSize);
       this.beltPositions.push(beltPosition);
-      if (beltPosition.segmentIndex < 0) {
+      if (typeof beltPosition === 'undefined' || beltPosition.segmentIndex < 0) {
         // abort
         this.clearAnimatedGeometries();
         return;
       }
 
+      if ([WbNodeType.WB_NODE_SHAPE, WbNodeType.WB_NODE_CAD_SHAPE, WbNodeType.WB_NODE_GROUP, WbNodeType.WB_NODE_SLOT]
+        .includes(this.geometryField.nodeType)) {
+        let pose = new WbPose(getAnId(), new WbVector3(), new WbVector4());
+        pose.children.push(this.geometryField);
+        pose.parentNode = this.id;
+        this.geometryField.parentNode = pose.id;
+        this.geometryField = pose;
+        WbWorld.instance.nodes.set(pose.id, pose);
+      }
       const newElement = this.geometryField.clone(getAnId());
       newElement.parent = this.id;
       WbWorld.instance.nodes.set(newElement.id, newElement);
@@ -118,7 +144,8 @@ export default class WbTrack extends WbSolid {
           relAngle = -relAngle;
         absAngle = relAngle + wheelsAngle;
         pointA = new WbVector2(radius * Math.cos(absAngle) + center.x, radius * Math.sin(absAngle) + center.y);
-        pointB = new WbVector2(nextRadius * Math.cos(absAngle + Math.PI) + nextCenter.x, nextRadius * Math.sin(absAngle + Math.PI) + nextCenter.y);
+        pointB = new WbVector2(nextRadius * Math.cos(absAngle + Math.PI) + nextCenter.x,
+          nextRadius * Math.sin(absAngle + Math.PI) + nextCenter.y);
       }
 
       if (w === 0)
@@ -167,7 +194,8 @@ export default class WbTrack extends WbSolid {
     if (angle < 0)
       angle += 2 * Math.PI;
     this.pathLength += radius * angle;
-    this.pathList.push(new WbPathSegment(previousPoint, firstPoint, previousRotation, radius, firstWheelCenter, new WbVector2(1, 1)));
+    this.pathList.push(new WbPathSegment(previousPoint, firstPoint, previousRotation, radius, firstWheelCenter,
+      new WbVector2(1, 1)));
 
     if (wheelsPositionError)
       // multiple wheels at the same location
@@ -178,18 +206,18 @@ export default class WbTrack extends WbSolid {
     super.preFinalize();
     this.computeBeltPath();
     this.updateAnimatedGeometries();
-    this.beltElements.forEach(beltElement => beltElement.preFinalize());
+    this.beltElements?.forEach(beltElement => beltElement.preFinalize());
   }
 
   createWrenObjects(isTransform) {
     super.createWrenObjects();
-    this.beltElements.forEach(beltElement => beltElement.createWrenObjects());
+    this.beltElements?.forEach(beltElement => beltElement.createWrenObjects());
   }
 
   postFinalize() {
     super.postFinalize();
     WbWorld.instance.tracks.add(this);
-    this.beltElements.forEach(beltElement => beltElement.postFinalize());
+    this.beltElements?.forEach(beltElement => beltElement.postFinalize());
   }
 
   initAnimatedGeometriesBeltPosition() {

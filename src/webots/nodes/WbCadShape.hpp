@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,17 +41,21 @@ public:
   explicit WbCadShape(WbTokenizer *tokenizer = NULL);
   WbCadShape(const WbCadShape &other);
   explicit WbCadShape(const WbNode &other);
-  virtual ~WbCadShape();
+  virtual ~WbCadShape() override;
 
   // reimplemented public functions
   int nodeType() const override { return WB_NODE_CAD_SHAPE; }
   void downloadAssets() override;
+  void preFinalize() override;
   void postFinalize() override;
+  void updateSegmentationColor(const WbRgb &color) override { setSegmentationColor(color); }
 
   const WbVector3 absoluteScale() const;
 
+  QStringList fieldsToSynchronizeWithW3d() const override;
+
 protected:
-  void exportNodeContents(WbWriter &writer) const override;
+  void exportNodeFields(WbWriter &writer) const override;
   WbBoundingSphere *boundingSphere() const override { return mBoundingSphere; }
   void recomputeBoundingSphere() const;
 
@@ -93,14 +97,13 @@ private:
   // methods and variables to handle obj materials
   QMap<QString, QString> mObjMaterials;  // maps materials as referenced in the obj to their remote counterpart
   QVector<WbDownloader *> mMaterialDownloaders;
-  QStringList objMaterialList(const QString &url);
+  QStringList objMaterialList(const QString &url) const;
   bool areMaterialAssetsAvailable(const QString &url);
-  QString generateMaterialUrl(const QString &material, const QString &completeUrl);
   void retrieveMaterials();
 
   const QString vrmlPbrAppearance(const aiMaterial *material);
   bool addTextureMap(QString &vrml, const aiMaterial *material, const QString &mapName, aiTextureType textureType);
-  QString colladaPath() const;
+  QString cadPath() const;
 
   void setSegmentationColor(const WbRgb &color);
 

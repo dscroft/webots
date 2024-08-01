@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,7 @@
 #define WB_VRML_WRITER_HPP
 
 //
-// Description: a text stream specialized for writing indented VRML or X3D
+// Description: a text stream specialized for writing indented VRML or W3D
 //
 
 #include <QtCore/QHash>
@@ -39,24 +39,22 @@ public:
   WbWriter(QString *target, const QString &fileName);
   virtual ~WbWriter();
 
-  bool isX3d() const { return mType == X3D; }
+  bool isW3d() const { return mType == W3D; }
   bool isProto() const { return mType == PROTO; }
   bool isUrdf() const { return mType == URDF; }
-  bool isWebots() const { return mType == VRML_SIM || mType == VRML_OBJ || mType == PROTO; }
+  bool isWebots() const { return mType == VRML_SIM || mType == PROTO; }
   bool isWritingToFile() const { return mIsWritingToFile; }
   QString *string() const { return mString; };
   QString path() const;
-  QHash<QString, QString> texturesList() const { return mTexturesList; }
-  void addTextureToList(const QString &url, const QString &fileName) { mTexturesList[url] = fileName; }
 
   void writeLiteralString(const QString &string);
   void writeMFStart();
   void writeMFSeparator(bool first, bool smallSeparator);
   void writeMFEnd(bool empty);
-  void writeFieldStart(const QString &name, bool x3dQuote);
-  void writeFieldEnd(bool x3dQuote);
+  void writeFieldStart(const QString &name, bool w3dQuote);
+  void writeFieldEnd(bool w3dQuote);
 
-  WbVector3 jointOffset() const { return mJointOffset; }
+  const WbVector3 &jointOffset() const { return mJointOffset; }
   void setJointOffset(const WbVector3 &offset) { mJointOffset = offset; }
 
   // change current indentation
@@ -66,12 +64,16 @@ public:
   // write current indentation
   void indent();
 
-  // write .wrl, .wbt, .wbo, .x3d or .urdf header and footer based on VrmlType
+  // write .wbt, .w3d or .urdf header and footer based on VrmlType
   void writeHeader(const QString &title);
   void writeFooter(const QStringList *info = NULL);
 
   void setRootNode(WbNode *node) { mRootNode = node; }
   WbNode *rootNode() const { return mRootNode; }
+  void trackDeclaration(const QString &protoName, const QString &protoUrl) {
+    mTrackedDeclarations.append(std::pair<QString, QString>(protoName, protoUrl));
+  };
+  const QList<std::pair<QString, QString>> &declarations() const { return mTrackedDeclarations; };
 
   QMap<uint64_t, QString> &indexedFaceSetDefMap() { return mIndexedFaceSetDefMap; }
   WbWriter &operator<<(const QString &s);
@@ -88,21 +90,23 @@ public:
   WbWriter &operator<<(const WbRgb &rgb);
 
   static QString relativeTexturesPath() { return "textures/"; }
+  static QString relativeMeshesPath() { return "meshes/"; }
 
 private:
   void setType();
 
-  enum Type { VRML_SIM, VRML_OBJ, X3D, PROTO, URDF };
+  enum Type { VRML_SIM, W3D, PROTO, URDF };
   QString *mString;
   QIODevice *mDevice;
   QString mFileName;
   Type mType;
   int mIndent;
   QMap<uint64_t, QString> mIndexedFaceSetDefMap;
-  QHash<QString, QString> mTexturesList;  // this hash represents the list of textures used and their associated filepath
-  WbNode *mRootNode;
   bool mIsWritingToFile;
   WbVector3 mJointOffset;
+  // variables used by 'convert root to basenode' writer
+  WbNode *mRootNode;
+  QList<std::pair<QString, QString>> mTrackedDeclarations;  // keep track of declarations that need to change level
 };
 
 #endif

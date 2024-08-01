@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,8 +40,8 @@ public:
   explicit WbImageTexture(WbTokenizer *tokenizer = NULL);
   WbImageTexture(const WbImageTexture &other);
   explicit WbImageTexture(const WbNode &other);
-  WbImageTexture(const aiMaterial *material, aiTextureType textureType, QString parentPath);
-  virtual ~WbImageTexture();
+  WbImageTexture(const aiMaterial *material, aiTextureType textureType, const QString &parentPath);
+  virtual ~WbImageTexture() override;
 
   // reimplemented public functions
   int nodeType() const override { return WB_NODE_IMAGE_TEXTURE; }
@@ -66,13 +66,13 @@ public:
   void setBackgroundTexture(WrTexture *backgroundTexture);
   void unsetBackgroundTexture();
 
-  const QString path(bool warning = false) const;
+  const QString path() const;
 
   void setRole(const QString &role) { mRole = role; }
 
-  void write(WbWriter &writer) const override;
+  void exportShallowNode(const WbWriter &writer) const;
 
-  void exportShallowNode(WbWriter &writer) const;
+  QStringList fieldsToSynchronizeWithW3d() const override;
 
 signals:
   void changed();
@@ -114,8 +114,6 @@ private:
   void destroyWrenTexture();
   bool loadTexture();
   bool loadTextureData(QIODevice *device);
-
-  static QSet<QString> cQualityChangedTexturesList;
 
 private slots:
   void updateUrl();

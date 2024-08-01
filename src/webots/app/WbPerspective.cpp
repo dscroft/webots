@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -106,7 +106,7 @@ bool WbPerspective::readContent(QTextStream &in, bool reloading) {
       const QString s = line.right(line.length() - 17).trimmed();  // remove label
       QStringList actionNamesList;
       splitUniqueNameList(s, actionNamesList);
-      foreach (const QString name, actionNamesList)
+      foreach (const QString &name, actionNamesList)
         mDisabledUserInteractionsMap[getActionFromString(name)] = true;
     } else if (key == "orthographicViewHeight:") {
       double value;
@@ -226,11 +226,11 @@ bool WbPerspective::load(bool reloading) {
 }
 
 bool WbPerspective::save() const {
-  QFile file(fileName());
-  if (!file.open(QIODevice::WriteOnly))
+  QFile outputFile(fileName());
+  if (!outputFile.open(QIODevice::WriteOnly))
     return false;
 
-  QTextStream out(&file);
+  QTextStream out(&outputFile);
   out << "Webots Project File version " << WbApplicationInfo::version().toString(false) << "\n";
   assert(!mState.isEmpty());
   out << "perspectives: " << mState.toHex() << "\n";
@@ -261,7 +261,7 @@ bool WbPerspective::save() const {
   out << "textFiles: " << mSelectedTab;
   // convert to relative paths and save
   const QDir dir(WbProject::current()->dir());
-  foreach (const QString file, mFilesList)
+  foreach (const QString &file, mFilesList)
     out << " \"" << dir.relativeFilePath(file) << "\"";
   out << "\n";
   if (!mRobotWindowNodeNames.isEmpty())
@@ -283,18 +283,19 @@ bool WbPerspective::save() const {
   for (it = mRenderingDevicesPerspectiveList.constBegin(); it != mRenderingDevicesPerspectiveList.constEnd(); ++it)
     out << "renderingDevicePerspectives: " << it.key() << ";" << it.value().join(";") << "\n";
 
-  file.close();
+  outputFile.close();
 
 #ifdef _WIN32
   // set hidden attribute to WBPROJ file
-  LPCSTR nativePath = QDir::toNativeSeparators(fileName()).toUtf8().constData();
+  const QByteArray nativePathByteArray = QDir::toNativeSeparators(fileName()).toUtf8();
+  const LPCSTR nativePath = nativePathByteArray.constData();
   SetFileAttributes(nativePath, GetFileAttributes(nativePath) | FILE_ATTRIBUTE_HIDDEN);
 #endif
 
   return true;
 }
 
-void WbPerspective::setSimulationViewState(QList<QByteArray> state) {
+void WbPerspective::setSimulationViewState(const QList<QByteArray> &state) {
   assert(state.size() == 2);
   mSimulationViewState = state[0];
   mSceneTreeState = state[1];

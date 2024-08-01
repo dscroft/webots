@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-# Copyright 1996-2022 Cyberbotics Ltd.
+# Copyright 1996-2023 Cyberbotics Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -47,9 +47,6 @@ now = datetime.datetime.now()
 if now.hour <= 5:
     # Publish nightly build with previous day date even if it completes in the morning
     now = now - datetime.timedelta(hours=6)
-if now.weekday() >= 5:
-    print('Skipping nightly build for Saturday and Sunday.')
-    sys.exit(0)
 
 warningMessage = '\nIt might be unstable, for a stable version of Webots, please use the [latest official release]' \
                  '(https://github.com/cyberbotics/webots/releases/latest).'
@@ -67,6 +64,10 @@ else:
     branchLink = '[%s](https://github.com/%s/blob/%s/docs/reference/changelog-r%d.md)' \
                  % (branchName, options.repo, options.commit, now.year)
     message = 'This is a nightly build of Webots from the following branch(es):\n  - %s\n%s' % (branchLink, warningMessage)
+
+if now.weekday() >= 5 and tagName.startswith("nightly_"):
+    print("Skipping nightly build for Saturday and Sunday.")
+    sys.exit(0)
 
 for release in repo.get_releases():
     match = re.match(r'Webots Nightly Build \((\d*)-(\d*)-(\d*)\)', release.title, re.MULTILINE)
@@ -133,7 +134,7 @@ for release in repo.get_releases():
             assets[asset.name] = asset
         releaseCommentModified = False
         if 'WEBOTS_HOME' in os.environ:
-            rootPath = os.environ['WEBOTS_HOME']
+            rootPath = os.path.normpath(os.environ['WEBOTS_HOME'])
         else:
             rootPath = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         for file in os.listdir(os.path.join(rootPath, 'distribution')):
@@ -173,6 +174,6 @@ for release in repo.get_releases():
         break
 
 if not releaseFound:  # if it does not exist, it should have been created by the script itself
-    print('Error, release "%s" should exist by now but does not.' % release.title)
+    print('Error, release "%s" should exist by now but does not.' % title)
 else:
     print('Upload finished.')

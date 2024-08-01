@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -73,9 +73,10 @@
 #include "WbPlane.hpp"
 #include "WbPointLight.hpp"
 #include "WbPointSet.hpp"
+#include "WbPose.hpp"
 #include "WbPositionSensor.hpp"
 #include "WbPropeller.hpp"
-#include "WbProtoList.hpp"
+#include "WbProtoManager.hpp"
 #include "WbProtoModel.hpp"
 #include "WbRadar.hpp"
 #include "WbRadio.hpp"
@@ -96,11 +97,15 @@
 #include "WbTemplateManager.hpp"
 #include "WbTextureCoordinate.hpp"
 #include "WbTextureTransform.hpp"
+#include "WbTokenizer.hpp"
 #include "WbTouchSensor.hpp"
 #include "WbTrack.hpp"
 #include "WbTrackWheel.hpp"
 #include "WbTransform.hpp"
+#include "WbUrl.hpp"
+#include "WbVacuumGripper.hpp"
 #include "WbViewpoint.hpp"
+#include "WbVrmlNodeUtilities.hpp"
 #include "WbWorld.hpp"
 #include "WbWorldInfo.hpp"
 #include "WbZoom.hpp"
@@ -111,7 +116,7 @@
 WbConcreteNodeFactory WbConcreteNodeFactory::gFactory;
 
 WbNode *WbConcreteNodeFactory::createNode(const QString &modelName, WbTokenizer *tokenizer, WbNode *parentNode,
-                                          const QString *protoFilePath) {
+                                          const QString *protoUrl) {
   if (modelName == "Accelerometer")
     return new WbAccelerometer(tokenizer);
   if (modelName == "Altimeter")
@@ -232,6 +237,8 @@ WbNode *WbConcreteNodeFactory::createNode(const QString &modelName, WbTokenizer 
     return new WbPointSet(tokenizer);
   if (modelName == "PositionSensor")
     return new WbPositionSensor(tokenizer);
+  if (modelName == "Pose")
+    return new WbPose(tokenizer);
   if (modelName == "Propeller")
     return new WbPropeller(tokenizer);
   if (modelName == "Radar")
@@ -276,8 +283,14 @@ WbNode *WbConcreteNodeFactory::createNode(const QString &modelName, WbTokenizer 
     return new WbTrack(tokenizer);
   if (modelName == "TrackWheel")
     return new WbTrackWheel(tokenizer);
-  if (modelName == "Transform")
+  if (modelName == "Transform") {
+    if (WbWorld::instance() && WbWorld::instance()->isLoading())
+      return WbVrmlNodeUtilities::transformBackwardCompatibility(tokenizer) ? new WbPose(tokenizer) :
+                                                                              new WbTransform(tokenizer);
     return new WbTransform(tokenizer);
+  }
+  if (modelName == "VacuumGripper")
+    return new WbVacuumGripper(tokenizer);
   if (modelName == "Viewpoint")
     return new WbViewpoint(tokenizer);
   if (modelName == "WorldInfo")
@@ -286,10 +299,16 @@ WbNode *WbConcreteNodeFactory::createNode(const QString &modelName, WbTokenizer 
     return new WbZoom(tokenizer);
 
   // look for PROTOs
-  WbProtoModel *const model =
-    protoFilePath ?
-      WbProtoList::current()->readModel(*protoFilePath, WbWorld::instance() ? WbWorld::instance()->fileName() : "") :
-      WbProtoList::current()->findModel(modelName, WbWorld::instance() ? WbWorld::instance()->fileName() : "");
+  WbProtoModel *model;
+  const QString &worldPath = WbWorld::instance() ? WbWorld::instance()->fileName() : "";
+  if (protoUrl) {
+    const QString prefix = WbUrl::computePrefix(*protoUrl);
+    model = WbProtoManager::instance()->readModel(*protoUrl, worldPath, prefix);
+  } else {
+    const QString &parentFilePath = tokenizer->fileName().isEmpty() ? tokenizer->referralFile() : tokenizer->fileName();
+    model = WbProtoManager::instance()->findModel(modelName, worldPath, parentFilePath);
+  }
+
   if (!model)
     return NULL;
 
@@ -299,7 +318,7 @@ WbNode *WbConcreteNodeFactory::createNode(const QString &modelName, WbTokenizer 
   WbNode *protoInstance =
     WbNode::createProtoInstance(model, tokenizer, WbWorld::instance() ? WbWorld::instance()->fileName() : "");
   if (protoInstance)
-    WbTemplateManager::instance()->subscribe(protoInstance);
+    WbTemplateManager::instance()->subscribe(protoInstance, false);
 
   WbNodeUtilities::fixBackwardCompatibility(protoInstance);
 
@@ -429,6 +448,8 @@ WbNode *WbConcreteNodeFactory::createCopy(const WbNode &original) {
     return new WbPointSet(original);
   if (modelName == "PositionSensor")
     return new WbPositionSensor(original);
+  if (modelName == "Pose")
+    return new WbPose(original);
   if (modelName == "Propeller")
     return new WbPropeller(original);
   if (modelName == "Radar")
@@ -475,6 +496,8 @@ WbNode *WbConcreteNodeFactory::createCopy(const WbNode &original) {
     return new WbTrackWheel(original);
   if (modelName == "Transform")
     return new WbTransform(original);
+  if (modelName == "VacuumGripper")
+    return new WbVacuumGripper(original);
   if (modelName == "Viewpoint")
     return new WbViewpoint(original);
   if (modelName == "WorldInfo")

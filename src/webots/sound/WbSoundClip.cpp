@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,12 +21,14 @@
 #include <QtCore/QObject>
 
 #ifdef __APPLE__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <OpenAL/al.h>
 #else
 #include <AL/al.h>
 #endif
 
-WbSoundClip::WbSoundClip() : mFilename(), mDevice(NULL), mBuffer(0), mSide(0), mBalance(0.0) {
+WbSoundClip::WbSoundClip() : mDevice(NULL), mBuffer(0), mSide(0), mBalance(0.0) {
 }
 
 WbSoundClip::~WbSoundClip() {
@@ -82,3 +84,7 @@ void WbSoundClip::load(const WbWaveFile *wave) {
 
   mBuffer = buffer;
 }
+
+#ifdef __APPLE__
+#pragma GCC diagnostic pop
+#endif

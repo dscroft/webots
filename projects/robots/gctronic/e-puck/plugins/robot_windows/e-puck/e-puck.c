@@ -1,11 +1,11 @@
 /*
- * Copyright 1996-2022 Cyberbotics Ltd.
+ * Copyright 1996-2023 Cyberbotics Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -200,7 +200,7 @@ void wb_robot_window_step(int time_step) {
       wb_remote_control_custom_function(&upload);
       free(port);
       const char *data = &message[8 + n];
-      const char *path = wbu_system_short_path(wbu_system_webots_tmp_path(false));
+      const char *path = wbu_system_short_path(wbu_system_webots_instance_path(false));
       const char *filename = "e-puck.hex";
       char *full_path = (char *)malloc(strlen(path) + strlen(filename) + 1);
       sprintf(full_path, "%s%s", path, filename);
@@ -349,11 +349,8 @@ void wb_robot_window_step(int time_step) {
   if (strlen(update) + strlen(update_message) < UPDATE_MESSAGE_SIZE)
     strcat(update_message, update);
 
-  if (areDevicesReady && wb_camera_get_sampling_period(camera)) {
+  if (areDevicesReady && wb_camera_get_sampling_period(camera))
     wbu_default_robot_window_update();  // we send all the update to get the image in base64.
-  }
-  if (strlen(update) + strlen(update_message) < UPDATE_MESSAGE_SIZE)
-    strcat(update_message, update);
 
   for (i = 0; i < gs_sensors_count; i++) {
     double v;
@@ -362,14 +359,14 @@ void wb_robot_window_step(int time_step) {
     else
       v = NAN;
     if (isnan(v))
-      snprintf(update, UPDATE_SIZE, " -1");
+      snprintf(update, UPDATE_SIZE, "-1 ");
     else {
       int c = (v - 300.0) * 255.0 / 700.0;
       if (c > 255)
         c = 255;
       else if (c < 0)
         c = 0;
-      snprintf(update, UPDATE_SIZE, " %d", (int)c);
+      snprintf(update, UPDATE_SIZE, "%d ", c);
     }
     if (strlen(update) + strlen(update_message) < UPDATE_MESSAGE_SIZE)
       strcat(update_message, update);

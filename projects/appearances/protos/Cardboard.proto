@@ -1,6 +1,8 @@
-#VRML_SIM R2022b utf8
+#VRML_SIM R2024a utf8
 # license: Apache License 2.0
-# license url: http://www.apache.org/licenses/LICENSE-2.0
+# license url: https://www.apache.org/licenses/LICENSE-2.0
+# documentation url: https://webots.cloud/run?url=https://github.com/cyberbotics/webots/blob/released/projects/appearances/protos/Cardboard.proto
+# keywords: appearance/other
 # A cardboard material containing several types that can make a box if combined.
 # template language: javascript
 
@@ -16,25 +18,25 @@ PROTO Cardboard [
     baseColor IS colorOverride
     baseColorMap ImageTexture {
       url [
-        %<= '"webots://projects/appearances/protos/textures/cardboard/cardboard_' + fields.type.value + '_base_color.jpg"' >%
+        %<= '"textures/cardboard/cardboard_' + fields.type.value + '_base_color.jpg"' >%
       ]
     }
 	  roughness 0.7
     roughnessMap ImageTexture {
       url [
-        %<= '"webots://projects/appearances/protos/textures/cardboard/cardboard_' + fields.type.value + '_roughness.jpg"' >%
+        %<= '"textures/cardboard/cardboard_' + fields.type.value + '_roughness.jpg"' >%
       ]
     }
     metalness 0
     IBLStrength IS IBLStrength
     normalMap ImageTexture {
       url [
-        %<= '"webots://projects/appearances/protos/textures/cardboard/cardboard_' + fields.type.value + '_normal.jpg"' >%
+        %<= '"textures/cardboard/cardboard_' + fields.type.value + '_normal.jpg"' >%
       ]
     }
     occlusionMap ImageTexture {
       url [
-        %<= '"webots://projects/appearances/protos/textures/cardboard/cardboard_' + fields.type.value + '_occlusion.jpg"' >%
+        %<= '"textures/cardboard/cardboard_' + fields.type.value + '_occlusion.jpg"' >%
       ]
     }
     textureTransform IS textureTransform

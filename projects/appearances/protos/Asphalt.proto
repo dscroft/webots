@@ -1,6 +1,8 @@
-#VRML_SIM R2022b utf8
+#VRML_SIM R2024a utf8
 # license: Apache License 2.0
-# license url: http://www.apache.org/licenses/LICENSE-2.0
+# license url: https://www.apache.org/licenses/LICENSE-2.0
+# documentation url: https://webots.cloud/run?url=https://github.com/cyberbotics/webots/blob/released/projects/appearances/protos/Asphalt.proto
+# keywords: appearance/mineral
 # An asphalt material. The color can be overridden using the `colorOverride` field. Useful with the `Road` PROTO.
 
 PROTO Asphalt [
@@ -13,20 +15,20 @@ PROTO Asphalt [
     baseColor IS colorOverride
     baseColorMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/asphalt/asphalt_base_color.jpg"
+        "textures/asphalt/asphalt_base_color.jpg"
       ]
       filtering 5
     }
     roughnessMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/asphalt/asphalt_roughness.jpg"
+        "textures/asphalt/asphalt_roughness.jpg"
       ]
       filtering 5
     }
     metalness 0
     normalMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/asphalt/asphalt_normal.png"
+        "textures/asphalt/asphalt_normal.jpg"
       ]
       filtering 5
     }
@@ -34,7 +36,7 @@ PROTO Asphalt [
     IBLStrength IS IBLStrength
     occlusionMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/asphalt/asphalt_occlusion.jpg"
+        "textures/asphalt/asphalt_occlusion.jpg"
       ]
       filtering 5
     }

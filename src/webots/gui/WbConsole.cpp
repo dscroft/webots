@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -127,7 +127,7 @@ void ConsoleEdit::focusInEvent(QFocusEvent *event) {
   // update application actions
   WbActionManager *actionManager = WbActionManager::instance();
   actionManager->setFocusObject(this);
-  actionManager->enableTextEditActions(false);
+  actionManager->enableTextEditActions(false, true);
   actionManager->setEnabled(WbAction::COPY, textCursor().hasSelection());
   actionManager->setEnabled(WbAction::SELECT_ALL, true);
   actionManager->setEnabled(WbAction::FIND, true);
@@ -162,7 +162,7 @@ void ConsoleEdit::handleFilterChange() {
       }
     } else if (action->text() == WbLog::filterName(WbLog::ALL_WEBOTS)) {
       // disable all the Webots filters
-      foreach (const QString filter, WbLog::webotsFilterNames())
+      foreach (const QString &filter, WbLog::webotsFilterNames())
         emit filterDisabled(filter);
       emit filterDisabled(WbLog::filterName(WbLog::ALL));
     } else if (action->text() == WbLog::filterName(WbLog::ALL_CONTROLLERS)) {
@@ -241,7 +241,7 @@ void ConsoleEdit::addContextMenuFilterItem(const QString &name, QMenu *menu, con
   if (!toolTip.isEmpty())
     action->setToolTip(toolTip);
   if (isControllerAction)
-    action->setProperty("isControllerAction", true);
+    action->setProperty("isControllerAction", QVariant(true));
   action->setCheckable(true);
   action->setChecked(console->getEnabledFilters().contains(name));
   menu->addAction(action);
@@ -427,9 +427,10 @@ void WbConsole::clear(bool reset) {
 
 void WbConsole::rename() {
   bool ok = false;
-  const QString name = QInputDialog::getText(this, tr("Console Name"), tr("New name:"), QLineEdit::Normal, mConsoleName, &ok);
-  if (ok && !name.isEmpty()) {
-    mConsoleName = name;
+  const QString nameString =
+    QInputDialog::getText(this, tr("Console Name"), tr("New name:"), QLineEdit::Normal, mConsoleName, &ok);
+  if (ok && !nameString.isEmpty()) {
+    mConsoleName = nameString;
     updateTitle();
   }
 }
@@ -586,7 +587,7 @@ void WbConsole::handlePossibleAnsiEscapeSequences(const QString &msg, WbLog::Lev
       }
 
       const QStringList codes(sequence.split(";"));  // handle multiple (e.g. sequence "ESC[0;39m" )
-      foreach (const QString code, codes) {
+      foreach (const QString &code, codes) {
         // the stored sequence may be "0m" or "1m", "4m", "2J", "30m", "31m", "32m", etc.
         if (code == "0m")  // reset to default
           resetFormat();
@@ -771,9 +772,9 @@ QRegularExpression **WbConsole::createErrorMatchingPatterns() const {
 
     // Webots parser: "ERROR: '/home/yvan/develop/webots/resources/projects/default/worlds/empty.wbt':19:2: error: skipped
     // unknown 'blabla' field in PointLight node"
-    new QRegularExpression("ERROR: \'(.+\\.(?:wbt|wbo|proto|wrl))\':(\\d+):(\\d+): .*"),
-    new QRegularExpression("ERROR: \'(.+\\.(?:wbt|wbo|proto|wrl))\':(\\d+): .*"),
-    new QRegularExpression("ERROR: \'(.+\\.(?:wbt|wbo|proto|wrl))\': .*"),
+    new QRegularExpression("ERROR: \'(.+\\.(?:wbt|proto))\':(\\d+):(\\d+): .*"),
+    new QRegularExpression("ERROR: \'(.+\\.(?:wbt|proto))\':(\\d+): .*"),
+    new QRegularExpression("ERROR: \'(.+\\.(?:wbt|proto))\': .*"),
 
     // terminate list
     NULL};

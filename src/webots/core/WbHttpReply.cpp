@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -60,12 +60,12 @@ QByteArray WbHttpReply::forgeFileReply(const QString &fileName, const QString &e
     reply.append("etag: ").append(hash.toHex()).append("\r\n");
     reply.append("\r\n");
   } else {
-    const QString mimeType = WbHttpReply::mimeType(fileName, true);
+    const QString mimeTypeString = WbHttpReply::mimeType(fileName, true);
     reply.append("HTTP/1.1 200 OK\r\n");
     reply.append("Access-Control-Allow-Origin: *\r\n");
     reply.append("Cache-Control: public, max-age=3600\r\n");  // Help the browsers to cache the file for 1 hour.
     reply.append("etag: ").append(hash.toHex()).append("\r\n");
-    reply.append(QString("Content-Type: %1\r\n").arg(mimeType).toUtf8());
+    reply.append(QString("Content-Type: %1\r\n").arg(mimeTypeString).toUtf8());
     reply.append(QString("Content-Length: %1\r\n").arg(data.length()).toUtf8());
     reply.append("\r\n");
     reply.append(data);
@@ -76,13 +76,20 @@ QByteArray WbHttpReply::forgeFileReply(const QString &fileName, const QString &e
 
 QString WbHttpReply::mimeType(const QString &url, bool generic) {
   const QString extension = url.mid(url.lastIndexOf('.') + 1).toLower();
-  QString type;
   if (extension == "png" || extension == "jpg" || extension == "jpeg" || extension == "ico")
     return QString("image/%1").arg(extension);
   else if (extension == "html" || extension == "css")
     return QString("text/%1").arg(extension);
   else if (extension == "js")
     return "application/javascript";
+  else if (extension == "dae")
+    return "model/vnd.collada+xml";
+  else if (extension == "obj")
+    return "model/obj";
+  else if (extension == "mtl")
+    return "model/mtl";
+  else if (extension == "stl")
+    return "model/stl";
   else
     return generic ? "application/octet-stream" : "";  // generic binary format
 }

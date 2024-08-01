@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,7 +24,7 @@
 #include <assert.h>
 
 void WbHiddenKinematicParameters::createHiddenKinematicParameter(
-  WbField *field, WbHiddenKinematicParameters::HiddenKinematicParametersMap &map) {
+  const WbField *field, WbHiddenKinematicParameters::HiddenKinematicParametersMap &map) {
   // Extract solid and joint indices
   static const QRegularExpression rx1("(_\\d+)+$");  // looks for a substring of the form _7 or _13_1 at the end of the
                                                      // parameter name, e.g. as in rotation_7, position2_13_1

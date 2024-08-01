@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,7 +20,9 @@
 #include "WbFileUtil.hpp"
 #include "WbRobot.hpp"
 
+class QLocalServer;
 class QLocalSocket;
+class QTcpSocket;
 class QProcessEnvironment;
 
 class WbController : public QObject {
@@ -37,7 +39,6 @@ public:
   // it never fails: the <generic> controller is started as a fallback
   void start();
 
-  void setSocket(QLocalSocket *socket);
   void writeAnswer(bool immediateAnswer = false);
   void writePendingImmediateAnswer() {
     if (mHasPendingImmediateAnswer)
@@ -49,6 +50,8 @@ public:
     if (mStdoutNeedsFlush)
       flushBuffer(&mStdoutBuffer);
   }
+  bool setTcpSocket(QTcpSocket *socket);
+  void addRemoteControllerConnection();
   WbRobot *robot() const { return mRobot; }
   int robotId() const;
   const QString &name() const;
@@ -67,6 +70,7 @@ signals:
 
 public slots:
   void readRequest();
+  void disconnected();
   void appendMessageToConsole(const QString &message, bool useStdout);
   void writeUserInputEventAnswer();
   void handleControllerExit();
@@ -74,6 +78,7 @@ public slots:
 private:
   WbRobot *mRobot;
   WbFileUtil::FileType mType;
+  bool mExtern;
   QString mControllerPath;  // path where the controller file is located
   QString mName;            // controller name, e.g. "<generic>"
   QString mCommand;         // command to be executed, e.g. "java"
@@ -86,7 +91,10 @@ private:
   QString mMatlabCommand;
   QString mMatlabOptions;
   QProcess *mProcess;
+  QString mIpcPath;  // path where the socket and memory mapped files are located
+  QLocalServer *mServer;
   QLocalSocket *mSocket;
+  QTcpSocket *mTcpSocket;
   QByteArray mRequest;
   double mRequestTime;
   bool mHasBeenTerminatedByItself;
@@ -101,6 +109,8 @@ private:
   QString mStderrBuffer;
   bool mStdoutNeedsFlush;
   bool mStderrNeedsFlush;
+
+  template<class T> void sendTerminationPacket(const T &socket, const QByteArray &buffer, const int size);
 
   void addToPathEnvironmentVariable(QProcessEnvironment &env, const QString &key, const QString &value, bool override,
                                     bool shouldPrepend = false);
@@ -121,7 +131,11 @@ private:
   void flushBuffer(QString *buffer);
   QString commandLine() const;
 
+  void prepareTcpStream(WbDataStream &stream);
+  int streamSizeManagement(WbDataStream &stream);
+
 private slots:
+  void addLocalControllerConnection();
   void readStdout();
   void readStderr();
   void info(const QString &message);

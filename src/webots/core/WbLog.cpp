@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -225,7 +225,7 @@ void WbLog::enqueueMessage(QList<PostponedMessage> &list, const QString &message
 void WbLog::showPostponedPopUpMessages() {
   bool tmp = instance()->mPopUpMessagesPostponed;
   setPopUpPostponed(false);
-  foreach (PostponedMessage msg, instance()->mPostponedPopUpMessageQueue) {
+  foreach (const PostponedMessage &msg, instance()->mPostponedPopUpMessageQueue) {
     switch (msg.level) {
       case DEBUG:
         debug(msg.text, msg.name, true);
@@ -249,7 +249,7 @@ void WbLog::showPostponedPopUpMessages() {
 }
 
 void WbLog::showPendingConsoleMessages() {
-  foreach (PostponedMessage msg, instance()->mPendingConsoleMessages)
+  foreach (const PostponedMessage &msg, instance()->mPendingConsoleMessages)
     emit instance()->logEmitted(msg.level, msg.text, false, msg.name);
   instance()->mPendingConsoleMessages.clear();
 }
@@ -261,7 +261,7 @@ void WbLog::toggle(FILE *std_stream) {
   assert(no >= 1);  // it shouldn't be stdin
   fflush(std_stream);
   if (fd[no] == 0) {
-    static FILE *stream;  // to make cppcheck happy about resource leak
+    static const FILE *stream;  // to make cppcheck happy about resource leak
     fd[no] = dup(no);
     stream = freopen("/dev/null", "w", std_stream);
     if (!stream)

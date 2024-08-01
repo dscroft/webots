@@ -1,11 +1,11 @@
 /*
- * Copyright 1996-2022 Cyberbotics Ltd.
+ * Copyright 1996-2023 Cyberbotics Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -514,7 +514,7 @@ bool wb_speaker_set_language(WbDeviceTag tag, const char *language) {
 }
 
 const char *wb_speaker_get_engine(WbDeviceTag tag) {
-  Speaker *speaker = speaker_get_struct(tag);
+  const Speaker *speaker = speaker_get_struct(tag);
   if (!speaker) {
     fprintf(stderr, "Error: %s(): invalid device tag.\n", __FUNCTION__);
     return NULL;
@@ -523,7 +523,7 @@ const char *wb_speaker_get_engine(WbDeviceTag tag) {
 }
 
 const char *wb_speaker_get_language(WbDeviceTag tag) {
-  Speaker *speaker = speaker_get_struct(tag);
+  const Speaker *speaker = speaker_get_struct(tag);
   if (!speaker) {
     fprintf(stderr, "Error: %s(): invalid device tag.\n", __FUNCTION__);
     return NULL;

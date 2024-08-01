@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -73,21 +73,21 @@ const void WbSysInfo::initializeOpenGlInfo() {
 const QString &WbSysInfo::openGLRenderer() {
   static QString openGLRender;
   if (openGLRender.isEmpty())
-    openGLRender = (const char *)glGetString(GL_RENDERER);
+    openGLRender = reinterpret_cast<const char *>(glGetString(GL_RENDERER));
   return openGLRender;
 }
 
 const QString &WbSysInfo::openGLVendor() {
   static QString openGLVendor;
   if (openGLVendor.isEmpty())
-    openGLVendor = (const char *)glGetString(GL_VENDOR);
+    openGLVendor = reinterpret_cast<const char *>(glGetString(GL_VENDOR));
   return openGLVendor;
 }
 
 const QString &WbSysInfo::openGLVersion() {
   static QString openGLVersion;
   if (openGLVersion.isEmpty())
-    openGLVersion = (const char *)glGetString(GL_VERSION);
+    openGLVersion = reinterpret_cast<const char *>(glGetString(GL_VERSION));
   return openGLVersion;
 }
 
@@ -100,6 +100,7 @@ void WbSysInfo::openGlLineWidthRange(double &min, double &max) {
 
 const QString &WbSysInfo::sysInfo() {
   static QString sysInfo;
+  // cppcheck-suppress knownConditionTrueFalse
   if (!sysInfo.isEmpty())
     return sysInfo;
 
@@ -108,7 +109,8 @@ const QString &WbSysInfo::sysInfo() {
   sysInfo.append(" ");
 
   SYSTEM_INFO winSysInfo;
-  PGNSI pGetNativeSystemInfo = (PGNSI)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetNativeSystemInfo");
+  PGNSI pGetNativeSystemInfo =
+    reinterpret_cast<PGNSI>(GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetNativeSystemInfo"));
   if (NULL != pGetNativeSystemInfo)
     pGetNativeSystemInfo(&winSysInfo);
   else
@@ -151,6 +153,7 @@ const QString &WbSysInfo::platformShortName() {
 #ifdef __linux__
   static QString platformShortName;
   if (platformShortName.isEmpty()) {
+    // cppcheck-suppress knownConditionTrueFalse
     if (WbSysInfo::isPointerSize64bits())
       platformShortName = "linux64";
     else
@@ -170,6 +173,7 @@ const QString &WbSysInfo::platformShortName() {
 
 const QString &WbSysInfo::processor() {
   static QString processor;
+  // cppcheck-suppress knownConditionTrueFalse
   if (!processor.isEmpty())
     return processor;
 #ifdef _WIN32
@@ -287,7 +291,7 @@ const QString &WbSysInfo::linuxCpuModelName() {
   QFile cpuinfoFile("/proc/cpuinfo");
   if (cpuinfoFile.open(QIODevice::ReadOnly)) {
     const QStringList lines = QString(cpuinfoFile.readAll()).split('\n');
-    foreach (const QString line, lines) {
+    foreach (const QString &line, lines) {
       if (line.startsWith("model name")) {
         // 12 corresponds to the strlen("model name: ")
         cpuinfo = line.mid(12).trimmed();  // remove leading and trailing whitespace
@@ -304,6 +308,7 @@ bool WbSysInfo::isRootUser() {
 #endif
 
 bool WbSysInfo::isPointerSize32bits() {
+  // cppcheck-suppress knownConditionTrueFalse
   return !WbSysInfo::isPointerSize64bits();
 }
 
@@ -348,6 +353,7 @@ bool WbSysInfo::isVirtualMachine() {
   const int vendorIdLength = 13;
   using VendorIdStr = char[vendorIdLength];
   VendorIdStr hyperVendorId = {};
+  // cppcheck-suppress nullPointer
   memcpy(hyperVendorId + 0, &ebx, 4);
   memcpy(hyperVendorId + 4, &ecx, 4);
   memcpy(hyperVendorId + 8, &edx, 4);
@@ -360,6 +366,7 @@ bool WbSysInfo::isVirtualMachine() {
     "prl hyperv  ",     // Parallels
     "VBoxVBoxVBox"      // VirtualBox
   };
+  // cppcheck-suppress constVariableReference
   for (const auto &vendor : vendors) {
     if (!memcmp(vendor, hyperVendorId, vendorIdLength)) {
       virtualMachine = 1;

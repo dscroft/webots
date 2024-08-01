@@ -1,11 +1,11 @@
 /*
- * Copyright 1996-2022 Cyberbotics Ltd.
+ * Copyright 1996-2023 Cyberbotics Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -324,7 +324,7 @@ void wb_robot_window_step(int time_step) {
   while ((message = wb_robot_wwi_receive_text())) {
     if (!wbu_generic_robot_window_handle_messages(message)) {
       char *tokens = strdup(message);
-      char *token = NULL;
+      const char *token = NULL;
       while ((token = wbu_string_strsep(&tokens, ","))) {
         char *command = strdup(token);
         char *first_word = wbu_string_strsep(&command, ":");

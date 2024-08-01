@@ -1,6 +1,8 @@
-#VRML_SIM R2022b utf8
+#VRML_SIM R2024a utf8
 # license: Apache License 2.0
-# license url: http://www.apache.org/licenses/LICENSE-2.0
+# license url: https://www.apache.org/licenses/LICENSE-2.0
+# documentation url: https://webots.cloud/run?url=https://github.com/cyberbotics/webots/blob/released/projects/appearances/protos/OldSteel.proto
+# keywords: appearance/metal
 # An old battered steel material.
 
 PROTO OldSteel [
@@ -13,22 +15,22 @@ PROTO OldSteel [
     baseColor IS colorOverride
     baseColorMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/old_steel/old_steel_base_color.jpg"
+        "textures/old_steel/old_steel_base_color.jpg"
       ]
     }
     roughnessMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/old_steel/old_steel_roughness.jpg"
+        "textures/old_steel/old_steel_roughness.jpg"
       ]
     }
     metalnessMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/old_steel/old_steel_metalness.jpg"
+        "textures/old_steel/old_steel_metalness.jpg"
       ]
     }
     normalMap ImageTexture {
       url [
-        "webots://projects/appearances/protos/textures/old_steel/old_steel_normal.jpg"
+        "textures/old_steel/old_steel_normal.jpg"
       ]
     }
     normalMapFactor 1

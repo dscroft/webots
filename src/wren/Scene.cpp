@@ -1,10 +1,10 @@
-// Copyright 1996-2022 Cyberbotics Ltd.
+// Copyright 1996-2023 Cyberbotics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//     https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -119,7 +119,9 @@ namespace wren {
     }
   }
 
-  void Scene::bindPixelBuffer(int buffer) { glBindBuffer(GL_PIXEL_PACK_BUFFER, buffer); }
+  void Scene::bindPixelBuffer(int buffer) {
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, buffer);
+  }
 
   void *Scene::mapPixelBuffer(unsigned int accessMode) {
 #ifdef __EMSCRIPTEN__
@@ -128,7 +130,9 @@ namespace wren {
     return glMapBuffer(GL_PIXEL_PACK_BUFFER, accessMode);
 #endif
   }
-  void Scene::unMapPixelBuffer() { glUnmapBuffer(GL_PIXEL_PACK_BUFFER); }
+  void Scene::unMapPixelBuffer() {
+    glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+  }
 
   void Scene::terminateFrameCapture() {
     glDeleteBuffers(mPixelBufferCount, mPixelBufferIds);
@@ -213,8 +217,12 @@ namespace wren {
     }
   }
 
-  int Scene::computeNodeCount() const { return 1 + mRoot->computeChildCount(); }
-  void Scene::printSceneTree() { debug::printSceneTree(); }
+  int Scene::computeNodeCount() const {
+    return 1 + mRoot->computeChildCount();
+  }
+  void Scene::printSceneTree() {
+    debug::printSceneTree();
+  }
 
   void Scene::render(bool culling) {
     assert(glstate::isInitialized());
@@ -228,7 +236,7 @@ namespace wren {
     renderToViewports({mMainViewport}, culling);
   }
 
-  void Scene::renderToViewports(std::vector<Viewport *> viewports, bool culling) {
+  void Scene::renderToViewports(const std::vector<Viewport *> &viewports, bool culling) {
     assert(glstate::isInitialized());
 
     DEBUG("Notify frame listeners...");
@@ -577,10 +585,6 @@ namespace wren {
     return std::partition(first, last, [](const Renderable *r) -> bool { return !r->receiveShadows(); });
   }
 
-  Scene::RenderQueueIterator Scene::partitionByZOrder(RenderQueueIterator first, RenderQueueIterator last) {
-    return std::partition(first, last, [](const Renderable *r) -> bool { return r->zSortedRendering(); });
-  }
-
   Scene::ShadowVolumeIterator Scene::partitionShadowsByVisibility(ShadowVolumeIterator first, ShadowVolumeIterator last,
                                                                   LightNode *light) {
     return std::partition(first, last, [this, &light](ShadowVolumeCaster *shadowVolume) -> bool {
@@ -592,7 +596,7 @@ namespace wren {
     std::sort(first, last, [](const Renderable *a, const Renderable *b) -> bool { return a->sortingId() > b->sortingId(); });
   }
 
-  void Scene::sortRenderQueueByDistance(RenderQueueIterator first, RenderQueueIterator last) {
+  void Scene::sortRenderQueueByDistance(RenderQueueIterator first, RenderQueueIterator last) const {
     for (auto it = first; it < last; ++it)
       (*it)->recomputeBoundingSphereInViewSpace(mCurrentViewport->camera()->view());
 
@@ -662,10 +666,10 @@ namespace wren {
       const primitive::Aabb &cameraAabb = camera->aabb();
       glm::vec3 cameraToLightInv;
       if (light->type() != LightNode::TYPE_DIRECTIONAL) {
-        PositionalLight *positionalLight = static_cast<PositionalLight *>(light);
+        const PositionalLight *positionalLight = static_cast<PositionalLight *>(light);
         cameraToLightInv = 1.0f / glm::normalize(positionalLight->position() - camera->position());
       } else {
-        DirectionalLight *directionalLight = static_cast<DirectionalLight *>(light);
+        const DirectionalLight *directionalLight = static_cast<DirectionalLight *>(light);
         cameraToLightInv = 1.0f / -directionalLight->direction();
       }
 
@@ -804,7 +808,7 @@ namespace wren {
     }
   }
 
-  void Scene::renderStencilFog(RenderQueueIterator first, RenderQueueIterator last) {
+  void Scene::renderStencilFog(RenderQueueIterator first, RenderQueueIterator last) const {
     glstate::setBlend(true);
     glstate::setBlendEquation(GL_FUNC_ADD);
     glstate::setBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
